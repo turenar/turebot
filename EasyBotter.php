@@ -89,7 +89,7 @@ class EasyBotter
     
     //ランダムにポスト
     function postRandom($datafile = "data.txt"){        
-        $status = $this->makeTweet($datafile);                
+        $status = $this->rento_check($datafile);                
         if(empty($status)){
             $message = "投稿するメッセージがないようです。<br />";
             echo $message;
@@ -213,6 +213,40 @@ class EasyBotter
         return $results;        
     }
     
+	//■■ランダムPOST・重複チェック■■
+	function rento_check($file){
+       if(empty($this->_tweetData[$file])){
+			$this->_tweetData[$file] = $this->readDataFile($file);
+		}
+		$rento_limit = 10; // n個前まで投稿を記録し、二重投稿を回避する
+		$twit_logfile = "twit_log.txt";
+		//$twit_logfileは存在するか？
+		if(!file_exists($twit_logfile)){
+			touch($twit_logfile) or die('ファイル作成に失敗\n');
+			chmod($twit_logfile, 0606) or die('権限変更に失敗\n');//※パーミッションは鯖によって違います
+		}
+		$Posttweets = file_get_contents($twit_logfile); // 読み込み
+		$p_tw = explode("\n", $Posttweets); // 配列に格納
+		do{
+			//発言をランダムに一つ選ぶ
+			$status = $this->_tweetData[$file][array_rand($this->_tweetData[$file])];
+		}while(in_array($status, $p_tw));
+
+		$p_tw2[0] = $status;//投稿ログをローテート
+		for( $i = 1; $i < $rento_limit; $i++ ){ //1から$rento_limit直前まで
+			if(isset($p_tw[$i-1])) {
+				$p_tw2[$i] = $p_tw[$i-1]; //古いのを送る。
+			}else{ break; } //投稿が少ない時は抜ける
+		}
+		$p_tw_output = join("\n",$p_tw2); //配列結合
+		$fp = fopen('twit_log.txt', 'r+'); //ファイルオープン
+		flock($fp, LOCK_EX); // ファイルのロック（排他制御）
+		ftruncate($fp, 0);
+		fwrite($fp,$p_tw_output); //ファイル書き込み
+		fclose($fp); //ファイルクローズ
+		return $status; //違う文を戻り値として返す
+	}
+
     //発言を作る
     function makeTweet($file, $number = FALSE){    
         if(empty($this->_tweetData[$file])){
