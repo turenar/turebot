@@ -96,9 +96,10 @@ class EasyBotter
             return array("error"=> $message);
         }else{                
             //idなどの変換
-            if(preg_match("@{.+?}@",$status) == 1){
+			//フッターを付けるためにコメントアウト
+            // if(preg_match("@{.+?}@",$status) == 1){
                 $status = $this->convertText($status);
-            }            
+            // }            
             $response = $this->setUpdate(array("status"=>$status));
             return $this->showResult($response);            
         }    
@@ -115,9 +116,9 @@ class EasyBotter
                 return array("error"=> $message);
             }else{                
                 //idなどの変換
-                if(preg_match("@{.+?}@",$status) == 1){
+                //if(preg_match("@{.+?}@",$status) == 1){
                     $status = $this->convertText($status);
-                }            
+                //}            
                 $response = $this->setUpdate(array("status"=>$status));
                 return $this->showResult($response);            
             }
@@ -288,9 +289,9 @@ class EasyBotter
             if(empty($status) || $status == "[[END]]"){
                 continue;
             }            
-            if(preg_match("@{.+?}@",$status) == 1){
+            //if(preg_match("@{.+?}@",$status) == 1){
                 $status = $this->convertText($status, $reply);
-            }
+            //}
             $reply_name = (string)$reply->user->screen_name;        
             $in_reply_to_status_id = (string)$reply->id;
             if(stristr($status, "[[AUTOFOLLOW]]")){
@@ -344,9 +345,9 @@ class EasyBotter
             if(empty($status)){
                 continue;
             }
-            if(preg_match("@{.+?}@",$status) == 1){
+            //if(preg_match("@{.+?}@",$status) == 1){
                 $status = $this->convertText($status, $tweet);
-            }            
+            //}            
             $reply_name = (string)$tweet->user->screen_name;        
             $in_reply_to_status_id = $tweet->id_str;
 			if(stristr($status, "[[TLH]]")){
@@ -492,69 +493,71 @@ class EasyBotter
     
     //文章を変換する
     function convertText($text, $reply = FALSE){
-        $text = str_replace("{year}",date("Y"),$text);
-        $text = str_replace("{month}",date("n"),$text);
-        $text = str_replace("{day}",date("j"),$text);
-        $text = str_replace("{hour}",date("G"),$text);
-        $text = str_replace("{minute}",date("i"),$text);
-        $text = str_replace("{second}",date("s"),$text);    
+        if(preg_match("@{.+?}@",$text) == 1){
+            $text = str_replace("{year}",date("Y"),$text);
+            $text = str_replace("{month}",date("n"),$text);
+            $text = str_replace("{day}",date("j"),$text);
+            $text = str_replace("{hour}",date("G"),$text);
+            $text = str_replace("{minute}",date("i"),$text);
+            $text = str_replace("{second}",date("s"),$text);    
         
-        //ランダムな一人のfollowingデータを取る    
-        if(strpos($text, "{following_id}") !== FALSE){
-            $response = $this->getFriends();
-            $id = $response->user[rand(0,count($response->user))]->screen_name;
-            $text = str_replace("{following_id}",$id,$text);        
-        }
-        if(strpos($text, "{following_name}") !== FALSE){
-            $response = $this->getFriends();
-            $name = $response->user[rand(0,count($response->user))]->name;
-            $text = str_replace("{following_name}",$name,$text);        
-        }
-        
-        //ランダムな一人のfollowerデータを取る    
-        if(strpos($text,"{follower_id}") !== FALSE){
-            $response = $this->getFollowers();
-            $id = $response->user[rand(0,count($response->user))]->screen_name;
-            $text = str_replace("{follower_id}",$id,$text);        
-        }
-        if(strpos($text, "{follower_name}") !== FALSE){
-            $response = $this->getFollowers();
-            $name = $response->user[rand(0,count($response->user))]->name;
-            $text = str_replace("{follower_name}",$name,$text);        
-        }
-        
-        //タイムラインからランダムに最近発言した人のデータを取る
-        if(strpos($text,"{timeline_id}") !== FALSE){
-            $randomTweet = $this->getRandomTweet();
-            $text = str_replace("{timeline_id}", $randomTweet->user->name,$text);        
-        }
-        if(strpos($text, "{timeline_name}") !== FALSE){
-            $randomTweet = $this->getRandomTweet();
-            $text = str_replace("{timeline_name}",$randomTweet->user->screen_name,$text);        
-        }
-                
-        //使うファイルによって違うやつ
-        //リプライの場合は相手のid、そうでなければfollowしているidからランダム
-        if(strpos($text,"{id}") !== FALSE){
-            if(!empty($reply)){
+            //ランダムな一人のfollowingデータを取る    
+            if(strpos($text, "{following_id}") !== FALSE){
+                $response = $this->getFriends();
+                $id = $response->user[rand(0,count($response->user))]->screen_name;
+                $text = str_replace("{following_id}",$id,$text);        
+            }
+            if(strpos($text, "{following_name}") !== FALSE){
+                $response = $this->getFriends();
+                $name = $response->user[rand(0,count($response->user))]->name;
+                $text = str_replace("{following_name}",$name,$text);        
+            }
+            
+            //ランダムな一人のfollowerデータを取る    
+            if(strpos($text,"{follower_id}") !== FALSE){
+                $response = $this->getFollowers();
+                $id = $response->user[rand(0,count($response->user))]->screen_name;
+                $text = str_replace("{follower_id}",$id,$text);        
+            }
+            if(strpos($text, "{follower_name}") !== FALSE){
+                $response = $this->getFollowers();
+                $name = $response->user[rand(0,count($response->user))]->name;
+                $text = str_replace("{follower_name}",$name,$text);        
+            }
+            
+            //タイムラインからランダムに最近発言した人のデータを取る
+            if(strpos($text,"{timeline_id}") !== FALSE){
+                $randomTweet = $this->getRandomTweet();
+                $text = str_replace("{timeline_id}", $randomTweet->user->screen_name,$text);        
+            }
+            if(strpos($text, "{timeline_name}") !== FALSE){
+                $randomTweet = $this->getRandomTweet();
+                $text = str_replace("{timeline_name}",$randomTweet->user->name,$text);        
+            }
+                    
+            //使うファイルによって違うやつ
+            //リプライの場合は相手のid、そうでなければfollowしているidからランダム
+            if(strpos($text,"{id}") !== FALSE){
+                if(!empty($reply)){
                 $text = str_replace("{id}",$reply->user->screen_name,$text);                
             }else{
                 $randomTweet = $this->getRandomTweet();
                 $text = str_replace("{id}",$randomTweet->user->screen_name,$text);        
+                }
             }
-        }
-        if(strpos($text,"{name}") !== FALSE){
-            if(!empty($reply)){
-                $text = str_replace("{name}",$reply->user->name,$text);                
-            }else{
-                $randomTweet = $this->getRandomTweet();
-                $text = str_replace("{name}",$randomTweet->user->name,$text);        
+            if(strpos($text,"{name}") !== FALSE){
+                if(!empty($reply)){
+                    $text = str_replace("{name}",$reply->user->name,$text);                
+              }else{
+                    $randomTweet = $this->getRandomTweet();
+                    $text = str_replace("{name}",$randomTweet->user->name,$text);        
+                }
             }
+            if(strpos($text,"{tweet}") !== FALSE && !empty($reply)){
+                $tweet = preg_replace("@\.?\@[a-zA-Z0-9-_]+\s@u","",$reply->text);            
+                $text = str_replace("{tweet}",$tweet,$text);                                   
+            }            
         }
-        if(strpos($text,"{tweet}") !== FALSE && !empty($reply)){
-            $tweet = preg_replace("@\.?\@[a-zA-Z0-9-_]+\s@u","",$reply->status);            
-            $text = str_replace("{tweet}",$tweet,$text);                                   
-        }            
         //フッターを追加
         $text .= $this->_footer;
         return $text;
