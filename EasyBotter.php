@@ -256,7 +256,16 @@ class EasyBotter
             }
             $reply_name = (string)$reply->user->screen_name;        
             $in_reply_to_status_id = (string)$reply->id;
-            $re["status"] = "@".$reply_name." ".$status;
+            if(stristr($status, "[[AUTOFOLLOW]]")){
+				$status = str_replace("[[AUTOFOLLOW]]", "", $status);
+				$followReq = $this->followUser($reply_name);
+				if($followReq->error) continue; // 失敗したときはとりあえず無視
+			}else if(stristr($status, "[[AUTOREMOVE]]")){
+				$status = str_replace("[[AUTOREMOVE]]", "", $status);
+				$removeReq = $this->consumer->sendRequest("http://api.twitter.com/friendships/destroy/$reply_name.json", array(), "POST");
+				if($followReq->error) continue; // 失敗したときはｒｙ
+			}
+			$re["status"] = "@".$reply_name." ".$status;
             $re["in_reply_to_status_id"] = $in_reply_to_status_id;
             
             $replyTweets[] = $re;
@@ -393,7 +402,12 @@ class EasyBotter
             }
         }
         foreach($followList as $screen_name){    
-            $response = $this->followUser($screen_name);   
+            $response = $this->followUser($screen_name);
+			if(!$response->error){
+				$postText = array("status"=>"@{$screen_name} フォローしたよ！");
+				$response = $this->setUpdate($postText);
+				$result = $this->showResult($response);
+			}
         }            
     }
     
