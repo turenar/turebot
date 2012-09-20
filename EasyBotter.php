@@ -21,6 +21,9 @@ class EasyBotter
         private $_repliedReplies;
         private $_logDataFile;
         private $_latestReply;
+		
+		private $_limitFollowUsers;
+		private $_limitFollowRatio;
         
     function __construct()
     {                        
@@ -45,6 +48,9 @@ class EasyBotter
         $this->_repliedReplies = array();
         $this->_logDataFile = "log.dat";
         $this->_latestReply = file_get_contents($this->_logDataFile);
+
+		$this->_limitFollowUsers = $limitFollowUsers;
+		$this->_limitFollowRatio = $limitFollowRatio;
         
         require_once 'HTTP/OAuth/Consumer.php';  
         $this->consumer = new HTTP_OAuth_Consumer($this->_consumer_key, $this->_consumer_secret);    
@@ -296,6 +302,8 @@ class EasyBotter
             $in_reply_to_status_id = (string)$reply->id;
             if(stristr($status, "[[AUTOFOLLOW]]")){
 				$status = str_replace("[[AUTOFOLLOW]]", "", $status);
+				if(in_array($reply->user->screen_name, $this->limitFollowUsers))
+					continue; // フォロー制限対象者は無視
 				$followReq = $this->followUser($reply_name);
 				if($followReq->error) continue; // 失敗したときはとりあえず無視
 			}else if(stristr($status, "[[AUTOREMOVE]]")){
@@ -429,7 +437,7 @@ class EasyBotter
             $text = (string)$reply->text;
             if(strpos($text,"RT") != FALSE || strpos($text,"QT") != FALSE){
                 continue;
-            }                        
+            }                       
             $replies[] = $reply;                            
         }    
         return $replies;    
@@ -453,7 +461,9 @@ class EasyBotter
         $followList = array();
         foreach($response as $user){
             $follow = (string)$user->following;
-            if($follow == "false"){
+            if( $follow == "false"
+			 && ($user->friends_count / (double) $user->followers_count) <= $this->_limitFollowRatio + 0.00001 // doubleの誤差を見越して
+			 && !in_array($user->screen_name, $this->_limitFollowUsers)){
                 $followList[] = (string)$user->screen_name;
             }
         }

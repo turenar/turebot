@@ -10,4 +10,6 @@ $access_token_secret = ""; // Access Token Secretの値
 $replyLoopLimit = 3; //リプライのループを防ぐための設定です。大体3回くらいで会話が止まります（多分……）
 $footer = ""; //ここにフッターを設定すると発言するときいつも末尾に追加されます
 $dataSeparator = "\n"; //data.txtの区切り文字です。改行が無視されるときはここに,（コンマ）などを設定してそれで区切ってください
+$limitFollowUsers = array(); // フォロー制限するユーザー。
+$limitFollowRatio = 1.0; // フォロー/フォロワー比が設定値より高い場合に自動フォローを制限 (リプライ時の半自動フォローは制限しない)
 ?>
