@@ -3,6 +3,13 @@
 //EasyBotter Ver2.04beta
 //updated 2010/02/28
 //======================================================================
+define("SQL_COMMAND_USERDATA", "CREATE TABLE `bot_data` (
+`userid` VARCHAR( 32 ) NOT NULL ,
+`key` VARCHAR( 32 ) NOT NULL ,
+`value` VARCHAR( 255 ) NULL ,
+PRIMARY KEY ( `userid` , `key` )
+) ENGINE = MYISAM CHARACTER SET utf8");
+
 class EasyBotter
 {    
         private $_screen_name;
@@ -24,6 +31,11 @@ class EasyBotter
 		
 		private $_limitFollowUsers;
 		private $_limitFollowRatio;
+
+		private $_dbhandle; // get_handler()を使用。
+		private $_db_name;
+		private $_db_user;
+		private $_db_pass;
         
     function __construct()
     {                        
@@ -51,6 +63,10 @@ class EasyBotter
 
 		$this->_limitFollowUsers = $limitFollowUsers;
 		$this->_limitFollowRatio = $limitFollowRatio;
+		
+		$this->_db_name = $database;
+		$this->_db_user = $databaseUser;
+		$this->_db_pass = $databasePassword;
         
         require_once 'HTTP/OAuth/Consumer.php';  
         $this->consumer = new HTTP_OAuth_Consumer($this->_consumer_key, $this->_consumer_secret);    
@@ -66,6 +82,9 @@ class EasyBotter
     }
        
    function __destruct(){
+        if($this->_dbhandle !== NULL){
+			mysql_close($this->_dbhandle); // not necessary?
+		}
         $this->printFooter();        
     }
     
@@ -504,13 +523,15 @@ class EasyBotter
     //文章を変換する
     function convertText($text, $reply = FALSE){
         if(preg_match("@{.+?}@",$text) == 1){
+			// 静的に置き換えできるものは前もって置き換え
             $text = str_replace("{year}",date("Y"),$text);
             $text = str_replace("{month}",date("n"),$text);
             $text = str_replace("{day}",date("j"),$text);
-            $text = str_replace("{hour}",date("G"),$text);
+            $__hour = date("G");
+            $text = str_replace("{hour}",$__hour,$text);
             $text = str_replace("{minute}",date("i"),$text);
             $text = str_replace("{second}",date("s"),$text);    
-        
+
             //ランダムな一人のfollowingデータを取る    
             if(strpos($text, "{following_id}") !== FALSE){
                 $response = $this->getFriends();
@@ -567,7 +588,68 @@ class EasyBotter
                 $tweet = preg_replace("@\.?\@[a-zA-Z0-9-_]+\s@u","",$reply->text);            
                 $text = str_replace("{tweet}",$tweet,$text);                                   
             }            
-        }
+
+			while( FALSE !== ($syntax_start = strrpos($text, "{"))){
+				$syntax_end = strpos($text, "}", $syntax_start);
+				if($syntax_end === FALSE){
+					/*ERROR*/echo "\{と\}の数が合わないか、位置が正しくありません";
+					break;
+				}
+				$func_separator = strpos($text, ":", $syntax_start);
+				$func = substr($text, $syntax_start, $func_separator-$syntax_start);
+				
+				switch($func){
+					case "{ifhour": /* {ifhour: <hour>[-<hour>] : <text>} */
+                		/*int*/$offset = $syntax_start + strlen("{ifhour:"); // 文字分だけスキップ
+                		/*int*/$separator_position = strpos($text, ":", $offset);
+                		/*str*/$hours_string = substr($text, $offset, $separator_position-$offset);
+                		/*bool*/$expand_flag = FALSE;
+                		if( FALSE !== ($rangepos = strpos($hours_string, "-")) ){ // <hour>-<hour>の書式のとき
+                		    /*int*/$start = intval(trim(substr($hours_string, 0, $rangepos)));
+                    		/*int*/$end = intval(trim(substr($hours_string, $rangepos+1)));
+                    		if($start<0||$start>23||$end<0||$end>23){
+                    		    $message = "<p>Syntax warning: {ifhour:&lt;hour&gt;-&lt;hour&gt;:&lt;text&gt;}の&lt;hour&gt;は、";
+                    		    $message = "0-23の範囲で指定するようにして下さい</p>";
+                    		    /*WARN*/echo $message;
+                    		}
+							/*DEBUG*/echo "<blockquote>ifhour: $start - $end</blockquote>";
+                    		$expand_flag = ($start<=$end? ($start<=$__hour&&$__hour<=$end):
+                    		                              ($start<=$__hour||$__hour<=$end));
+                		}else{
+                		    $expand_flag = intval($hours_string) == $__hour;
+                		}
+		
+						if($expand_flag){
+							$text = substr_replace($text, 
+												   substr($text,$separator_position+1,$syntax_end-$separator_position-1),
+												   $syntax_start, 
+												   $syntax_end-$syntax_start+1);
+						}else{
+							$text = substr_replace($text, "", $syntax_start, $syntax_end-$syntax_start+1);
+						}
+						/*DEBUG*/echo "<blockquote>ifhour: replaced: $text</blockquote>";
+						break;
+
+					case "{store": /* {store: <key> : <value>} */
+						/*int*/$offset = $syntax_start + strlen("{store:"); // 文字分だけスキップ
+                		/*int*/$separator_position = strpos($text, ":", $offset);
+                		/*str*/$key = trim(substr($text, $offset, $separator_position-$offset));
+						/*str*/$val = trim(substr($text,$separator_position+1, $syntax_end-$separator_position-1));
+						$this->storeUserData((empty($reply) ? "__system" : $reply->user->id_str), $key, $val);
+						$text = substr_replace($text, "", $syntax_start, $syntax_end-$syntax_start+1);
+						break;
+
+					case "{get": /* {get: <key> : <default>} */
+						/*int*/$offset = $syntax_start + strlen("{get:"); // 文字分だけスキップ
+                		/*int*/$separator_position = strpos($text, ":", $offset);
+                		/*str*/$key = trim(substr($text, $offset, $separator_position-$offset));
+						/*str*/$default = trim(substr($text,$separator_position+1, $syntax_end-$separator_position-1));
+						/*str*/$val = $this->getUserData((empty($reply) ? "__system" : $reply->user->id_str), $key, $default);
+						$text = substr_replace($text, $val, $syntax_start, $syntax_end-$syntax_start+1);
+						break;
+        		}
+			}
+		}
         //フッターを追加
         $text .= $this->_footer;
         return $text;
@@ -591,7 +673,50 @@ class EasyBotter
             return array("error" => $message);
         }
     }
+
+	// [ture7] MySQLに接続する
+	function get_dbhandle(){
+		if($this->_dbhandle == NULL){
+			$error_message = NULL;
+			$this->_dbhandle = mysql_connect("localhost", $this->_db_user, $this->_db_pass)
+				or die("<p style='color:red;'>Failed open database: $error_message</p>");
+			mysql_select_db($this->_db_name, $this->_dbhandle);
+		}
+		return $this->_dbhandle;
+	}
+
+	// [ture7] SQLiteでSQLコマンドを実行する
+	function execute_sql($sql){
+		$dbhandle = $this->get_dbhandle();
+		$result = mysql_query($sql, $dbhandle);
+		if($result === FALSE){
+			$error_message = mysql_error($dbhandle);
+			echo "<p>Could not execute sql($sql): $error_message</p>";
+		}
+		mysql_set_charset('utf8');
+		return $result;
+	}
+
+	// [ture7] SQLiteを使ってKV型を追加する
+	function storeUserData($userid, $key, $value){
+		$sql = sprintf("REPLACE INTO user_data (userid, key, value) values ( '%s', '%s', '%s' )"
+						, mysql_real_escape_string($userid), mysql_real_escape_string($key), mysql_real_escape_string($value));
+		$this->execute_sql($sql);
+	}
     
+	// [ture7] SQLiteを使ってKV型を取得する
+	function getUserData($userid, $key, $default = ""){
+		$sql = sprintf("SELECT value FROM user_data WHERE userid = '%s' AND key = '%s'"
+						, mysql_real_escape_string($userid), mysql_real_escape_string($key));
+		$result = $this->execute_sql($sql);
+		if(mysql_num_rows($result) > 0){
+			$row = mysql_fetch_row($result);
+			return $row[0];
+		} else {
+			return $default;
+		}
+	}
+
     //基本的なAPIを叩く
     function _setData($url, $value = array()){                
         $response = $this->consumer->sendRequest($url, $value, "POST");  
