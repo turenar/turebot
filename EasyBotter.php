@@ -158,7 +158,10 @@ class EasyBotter
                 //リプライの文章をつくる
                 $replyTweets = $this->makeReplyTweets($replies, $replyFile, $replyPatternFile);                
                 foreach($replyTweets as $re){
-                    $value = array("status"=>$re["status"],'in_reply_to_status_id'=>$re["in_reply_to_status_id"]);    
+					if(isset($re["in_reply_to_status_id"]))
+	                    $value = array("status"=>$re["status"],'in_reply_to_status_id'=>$re["in_reply_to_status_id"]);    
+					else
+	                    $value = array("status"=>$re["status"]);    
                     $response = $this->setUpdate($value);      
                     $result = $this->showResult($response);
                     $results[] = $result;
@@ -265,8 +268,17 @@ class EasyBotter
 				$removeReq = $this->consumer->sendRequest("http://api.twitter.com/friendships/destroy/$reply_name.json", array(), "POST");
 				if($followReq->error) continue; // 失敗したときはｒｙ
 			}
-			$re["status"] = "@".$reply_name." ".$status;
-            $re["in_reply_to_status_id"] = $in_reply_to_status_id;
+			if(stristr($status, "[[TLH]]")){
+				$status = str_replace("[[TLH]]", "", $status);
+				$re["status"] = $status;
+			}else if(stristr($status, "[[TLRT]]")){
+				$status = str_replace("[[TLRT]]", "", $status);
+				$status = "$status RT @{$reply_name}: {$reply->text}";
+				$re["status"] = substr($status, 0, 140); // 140文字に制限
+			}else{
+				$re["status"] = "@".$reply_name." ".$status;
+            	$re["in_reply_to_status_id"] = $in_reply_to_status_id;
+			}
             
             $replyTweets[] = $re;
         }                        
@@ -302,9 +314,18 @@ class EasyBotter
                 $status = $this->convertText($status, $tweet);
             }            
             $reply_name = (string)$tweet->user->screen_name;        
-            $in_reply_to_status_id = (string)$tweet->id;
-            $re["status"] = "@".$reply_name." ".$status;
-            $re["in_reply_to_status_id"] = $in_reply_to_status_id;               
+            $in_reply_to_status_id = $tweet->id_str;
+			if(stristr($status, "[[TLH]]")){
+				$status = str_replace("[[TLH]]", "", $status);
+				$re["status"] = $status;
+			}else if(stristr($status, "[[TLRT]]")){
+				$status = str_replace("[[TLRT]]", "", $status);
+				$status = "$status RT @{$reply_name}: {$reply->text}";
+				$re["status"] = substr($status, 0, 140); // 140文字に制限
+			}else{
+				$re["status"] = "@".$reply_name." ".$status;
+            	$re["in_reply_to_status_id"] = $in_reply_to_status_id;
+			}
             $replyTweets[] = $re;
         }                        
         return $replyTweets;    
