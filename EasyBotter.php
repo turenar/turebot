@@ -3,7 +3,7 @@
 //EasyBotter Ver2.04beta
 //updated 2010/02/28
 //======================================================================
-define("SQL_COMMAND_USERDATA", "CREATE TABLE `bot_data` (
+define("SQL_COMMAND_USERDATA", "CREATE TABLE `user_data` (
 `userid` VARCHAR( 32 ) NOT NULL ,
 `key` VARCHAR( 32 ) NOT NULL ,
 `value` VARCHAR( 255 ) NULL ,
@@ -376,7 +376,7 @@ class EasyBotter
                 $status = $this->convertText($status, $tweet);
             //}            
             $reply_name = (string)$tweet->user->screen_name;        
-            $in_reply_to_status_id = $tweet->id_str;
+            $in_reply_to_status_id = $tweet->id;
 			if(stristr($status, "[[TLH]]")){
 				$status = str_replace("[[TLH]]", "", $status);
 				$re["status"] = $status;
@@ -635,7 +635,7 @@ class EasyBotter
                 		/*int*/$separator_position = strpos($text, ":", $offset);
                 		/*str*/$key = trim(substr($text, $offset, $separator_position-$offset));
 						/*str*/$val = trim(substr($text,$separator_position+1, $syntax_end-$separator_position-1));
-						$this->storeUserData((empty($reply) ? "__system" : $reply->user->id_str), $key, $val);
+						$this->storeUserData((empty($reply) ? "__system" : $reply->user->id), $key, $val);
 						$text = substr_replace($text, "", $syntax_start, $syntax_end-$syntax_start+1);
 						break;
 
@@ -644,7 +644,7 @@ class EasyBotter
                 		/*int*/$separator_position = strpos($text, ":", $offset);
                 		/*str*/$key = trim(substr($text, $offset, $separator_position-$offset));
 						/*str*/$default = trim(substr($text,$separator_position+1, $syntax_end-$separator_position-1));
-						/*str*/$val = $this->getUserData((empty($reply) ? "__system" : $reply->user->id_str), $key, $default);
+						/*str*/$val = $this->getUserData((empty($reply) ? "__system" : $reply->user->id), $key, $default);
 						$text = substr_replace($text, $val, $syntax_start, $syntax_end-$syntax_start+1);
 						break;
         		}
@@ -681,11 +681,22 @@ class EasyBotter
 			$this->_dbhandle = mysql_connect("localhost", $this->_db_user, $this->_db_pass)
 				or die("<p style='color:red;'>Failed open database: $error_message</p>");
 			mysql_select_db($this->_db_name, $this->_dbhandle);
+			mysql_set_charset('utf8');
 		}
 		return $this->_dbhandle;
 	}
+	
+	// [ture7] MySQLのデータベースを作成する
+	function initdb(){
+		$result = $this->execute_sql(SQL_COMMAND_USERDATA);
+		if($result){
+			echo "Successfully created table";
+		}else{
+			echo "Failed creating table";
+		}
+	}
 
-	// [ture7] SQLiteでSQLコマンドを実行する
+	// [ture7] MySQLでSQLコマンドを実行する
 	function execute_sql($sql){
 		$dbhandle = $this->get_dbhandle();
 		$result = mysql_query($sql, $dbhandle);
@@ -693,21 +704,23 @@ class EasyBotter
 			$error_message = mysql_error($dbhandle);
 			echo "<p>Could not execute sql($sql): $error_message</p>";
 		}
-		mysql_set_charset('utf8');
 		return $result;
 	}
 
-	// [ture7] SQLiteを使ってKV型を追加する
+	// [ture7] MySQLを使ってKV型を追加する
 	function storeUserData($userid, $key, $value){
-		$sql = sprintf("REPLACE INTO user_data (userid, key, value) values ( '%s', '%s', '%s' )"
-						, mysql_real_escape_string($userid), mysql_real_escape_string($key), mysql_real_escape_string($value));
+		$dbhandle = $this->get_dbhandle();
+		$sql = sprintf("REPLACE INTO `user_data` ( `userid`, `key`, `value` ) values ( '%s', '%s', '%s' )"
+						, mysql_real_escape_string($userid, $dbhandle), mysql_real_escape_string($key, $dbhandle)
+						, mysql_real_escape_string($value, $dbhandle));
 		$this->execute_sql($sql);
 	}
     
-	// [ture7] SQLiteを使ってKV型を取得する
+	// [ture7] MySQLを使ってKV型を取得する
 	function getUserData($userid, $key, $default = ""){
-		$sql = sprintf("SELECT value FROM user_data WHERE userid = '%s' AND key = '%s'"
-						, mysql_real_escape_string($userid), mysql_real_escape_string($key));
+		$dbhandle = $this->get_dbhandle();
+		$sql = sprintf("SELECT `value` FROM `user_data` WHERE `userid` = '%s' AND `key` = '%s'"
+						, mysql_real_escape_string($userid, $dbhandle), mysql_real_escape_string($key, $dbhandle));
 		$result = $this->execute_sql($sql);
 		if(mysql_num_rows($result) > 0){
 			$row = mysql_fetch_row($result);
