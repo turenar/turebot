@@ -327,7 +327,7 @@ class EasyBotter
 				if($followReq->error) continue; // 失敗したときはとりあえず無視
 			}else if(stristr($status, "[[AUTOREMOVE]]")){
 				$status = str_replace("[[AUTOREMOVE]]", "", $status);
-				$removeReq = $this->consumer->sendRequest("http://api.twitter.com/friendships/destroy/$reply_name.json", array(), "POST");
+				$removeReq = $this->consumer->sendRequest("https://api.twitter.com/1/friendships/destroy/$reply_name.json", array(), "POST");
 				if($followReq->error) continue; // 失敗したときはｒｙ
 			}
 			if(stristr($status, "[[TLH]]")){
@@ -742,16 +742,16 @@ class EasyBotter
         return $response;
     }    
     function setUpdate($value){        
-        $url = "https://twitter.com/statuses/update.xml";
+        $url = "https://api.twitter.com/1/statuses/update.xml";
         return $this->_setData($url,$value);
     }            
     function getFriendsTimeline(){
-        $url = "http://twitter.com/statuses/friends_timeline.xml";
+        $url = "https://api.twitter.com/1/statuses/friends_timeline.xml";
         return $this->_getData($url);                
     }
     function getReplies($page = false)
     {
-        $url = "http://twitter.com/statuses/replies.xml";        
+        $url = "https://api.twitter.com/1/statuses/replies.xml";        
         if ($page) {
             $url .= '?page=' . intval($page);
         }
@@ -759,17 +759,17 @@ class EasyBotter
     }        
     function getFriends($id = null)
     {
-        $url = "http://twitter.com/statuses/friends.xml";        
+        $url = "https://api.twitter.com/1/statuses/friends.xml";        
         return $this->_getData($url);
     }    
     function getFollowers()
     {
-        $url = "http://twitter.com/statuses/followers.xml";        
+        $url = "https://api.twitter.com/1/statuses/followers.xml";        
         return $this->_getData($url);
     }    
     function followUser($screen_name)
     {    
-        $url = "http://twitter.com/friendships/create/".$screen_name.".xml";    
+        $url = "https://api.twitter.com/1/friendships/create/".$screen_name.".xml";    
         return $this->_setData($url);
     }
 }    
