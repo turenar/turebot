@@ -92,16 +92,24 @@ class TureBotter
 			$this->output('E', 'post', $message);
 			return $this->make_error(ERR_ID__NOTHING_TO_TWEET, $message);
 		}else{
-			$status = $this->make_tweet($status_text);
-			$response = $this->twitter_update_status(array("status" => $status));
-			if(isset($response['error'])){
-				$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
-				$this->output('E', 'post', $message);
-				return $this->make_error(ERR_ID__FAILED_API, $message);
-			}else{
-				$this->output('I', 'post', "updated status: $status");
-				return array("result"=>"success","response"=>$response);
-			}
+			return $this->post($status_text);
+		}
+	}
+
+	/**
+	 * 指定した文字列を投稿する
+	 * @param string $status 投稿する文字列
+	 */
+	public function post($status_text){
+		$status = $this->make_tweet($status_text);
+		$response = $this->twitter_update_status(array("status" => $status));
+		if(isset($response['error'])){
+			$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
+			$this->output('E', 'post', $message);
+			return $this->make_error(ERR_ID__FAILED_API, $message);
+		}else{
+			$this->output('I', 'post', "updated status: $status");
+			return array("result"=>"success","response"=>$response);
 		}
 	}
 

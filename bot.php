@@ -7,7 +7,8 @@ $eb = new TureBotter();
 //先頭に//がある行はコメント扱いなので実行しません。実行したい行の頭の//を削除してください。
 //=============================
 //$response = $eb->autoFollow();
-//$response = $eb->postRandom("data.txt"); 
+//$response = $eb->post("あいうえお");
+//$response = $eb->postRandom("data.txt");
 //$response = $eb->postRotation("data.txt");
 //$response = $eb->reply(2,"data.txt","reply_pattern.php");
 //$response = $eb->replyTimeline(2,"reply_pattern.php");
