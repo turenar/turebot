@@ -1,9 +1,6 @@
 <?php
-//=============================
-//EasyBotterを呼び出します
-//=============================
-require_once("EasyBotter.php");
-$eb = new EasyBotter();
+require_once("TureBotter.php");
+$eb = new TureBotter();
 
 //=============================
 //botの動作をここに書いてください
