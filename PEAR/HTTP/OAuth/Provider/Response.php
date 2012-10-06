@@ -44,6 +44,8 @@ class HTTP_OAuth_Provider_Response extends HTTP_OAuth_Message
     const STATUS_INVALID_TOKEN        = 5;
     const STATUS_INVALID_SIGNATURE    = 6;
     const STATUS_INVALID_NONCE        = 7;
+    const STATUS_INVALID_VERIFIER     = 8;
+    const STATUS_INVALID_TIMESTAMP    = 9;
 
     /**
      * Status map
@@ -76,7 +78,13 @@ class HTTP_OAuth_Provider_Response extends HTTP_OAuth_Message
         ),
         self::STATUS_INVALID_NONCE => array(
             401, 'Invalid / used nonce'
-        )
+        ),
+        self::STATUS_INVALID_VERIFIER => array(
+            401, 'Invalid verifier'
+        ),
+        self::STATUS_INVALID_TIMESTAMP => array(
+            401, 'Invalid timestamp'
+        ),
     );
 
     /**
@@ -187,6 +195,7 @@ class HTTP_OAuth_Provider_Response extends HTTP_OAuth_Message
         }
     }
 
+    // @codeCoverageIgnoreStart
     /**
      * Headers sent
      *
@@ -208,6 +217,7 @@ class HTTP_OAuth_Provider_Response extends HTTP_OAuth_Message
     {
         return header($header);
     }
+    // @codeCoverageIgnoreEnd
 
     /**
      * Prepare body
@@ -261,7 +271,9 @@ class HTTP_OAuth_Provider_Response extends HTTP_OAuth_Message
         if (!$this->headersSent()) {
             $this->header('HTTP/1.1 200 OK');
             foreach ($this->getHeaders() as $name => $value) {
+                // @codeCoverageIgnoreStart
                 $this->header($name . ': ' . $value);
+                // @codeCoverageIgnoreEnd
             }
         } else {
             $this->err('Headers already sent, can not send headers');
