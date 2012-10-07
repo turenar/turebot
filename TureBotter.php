@@ -76,8 +76,16 @@ class TureBotter
 				"error"=>array("eid"=>$errid, "message"=>$message));
 	}
 
-	protected function make_tweet($status_text){
-		return $status_text; // TODO
+	protected function make_tweet($text){
+		if(preg_match('@{.+?}@', $text) == 1){
+			$text = str_replace('{year}', date('Y'), $text);
+			$text = str_replace('{month}', date('n'), $text);
+			$text = str_replace('{day}', date('j'), $text);
+			$text = str_replace('{hour}', date('G'), $text);
+			$text = str_replace('{minute}', date('i'), $text);
+			$text = str_replace('{second}', date('s'), $text);
+		}
+		return $text;
 	}
 
 	/**
