@@ -1,4 +1,5 @@
 .*
+*.cache
 *-test.php
 *-test.txt
 EasyBotter.php

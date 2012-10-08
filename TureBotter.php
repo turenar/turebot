@@ -7,12 +7,16 @@ define("SQL_COMMAND_USERDATA", "CREATE TABLE `user_data` (
 		) ENGINE = MYISAM CHARACTER SET utf8");
 define("ERR_ID__NOTHING_TO_TWEET", 1);
 define("ERR_ID__FAILED_API", 2);
+define("ERR_ID__ILLEGAL_FILE", 3);
 define("TWITTER_API_BASE_URL","https://api.twitter.com/1.1/");
 
 class TureBotter
 {
-	private $consumer;
-	private $tweet_data;
+	protected	$consumer;
+	private	$tweet_data;
+	protected	$screen_name;
+	private	$cache_file;
+	protected	$cache_data;
 
 	public function __construct($config_file="setting.php"){
 		$peardir = dirname(__FILE__)."/PEAR";
@@ -32,8 +36,22 @@ class TureBotter
 		$consumer->setToken($access_token);
 		$consumer->setTokenSecret($access_token_secret);
 
+		$cache_file = "{$config_file}.cache";
+		if(file_exists($cache_file)){
+			$cache_data = unserialize(file_get_contents($cache_file));
+		} else {
+			$cache_data = array();
+		}
+
 		$this->consumer = $consumer;
 		$this->tweet_data = array();
+		$this->screen_name = $screen_name;
+		$this->cache_file = $cache_file;
+		$this->cache_data = $cache_data;
+	}
+
+	function __destruct(){
+		file_put_contents($this->cache_file, serialize($this->cache_data));
 	}
 
 	protected function output($level, $category, $text){
@@ -45,7 +63,12 @@ class TureBotter
 	 * @param string $file ツイートファイル
 	 */
 	protected function load_tweet($file){
+		if(isset($this->tweet_data[$file])){
+			return;
+		}
+
 		if(preg_match('/\.php$/', $file) == 1){
+			$data = array();
 			require_once($file);
 			$this->tweet_data[$file] = $data;
 		}else{
@@ -58,9 +81,7 @@ class TureBotter
 	 * @return NULL|string ツイート文字列
 	 */
 	protected function get_next_tweet($file){
-		if(isset($this->tweet_data[$file]) == false){
-			$this->load_tweet($file);
-		}
+		$this->load_tweet($file);
 		$tweet_data = $this->tweet_data[$file];
 
 		if(count($tweet_data)==0){
@@ -76,7 +97,7 @@ class TureBotter
 				"error"=>array("eid"=>$errid, "message"=>$message));
 	}
 
-	protected function make_tweet($text){
+	protected function make_tweet($text, $reply=NULL){
 		if(preg_match('@{.+?}@', $text) == 1){
 			$text = str_replace('{year}', date('Y'), $text);
 			$text = str_replace('{month}', date('n'), $text);
@@ -86,6 +107,58 @@ class TureBotter
 			$text = str_replace('{second}', date('s'), $text);
 		}
 		return $text;
+	}
+
+	protected function filter_tweets($tweets){
+		$result = array();
+		$limitTime = time() - 60*60; // あまりにも古いやつは捨てる
+		foreach($tweets as $tweet){
+			// 古いやつは捨てる
+			if($limitTime >= strtotime($tweet['created_at'])){
+				continue;
+			}
+			// 自分自身のツイートを除外
+			if($this->screen_name == $tweet['user']['screen_name']){
+				continue;
+			}
+			// RT, QTを除外
+			$text = $tweet['text'];
+			if(strpos($text, 'RT') !== false || strpos($text, 'QT') !== false){
+				continue;
+			}
+			$result[] = $tweet;
+		}
+		return $result;
+	}
+
+	protected function make_reply_tweet($reply, $reply_file, $reply_pattern_file){
+		$this->load_tweet($reply_pattern_file);
+		$pattern_data = $this->tweet_data[$reply_pattern_file];
+		$text = $reply['text'];
+		foreach($pattern_data as $pattern => $res){
+			if(count($res)!=0){
+				if(preg_match('@'.$pattern.'@u', $text, $matches) === 1){
+					$status = $res[array_rand($res)];
+					for($i=count($matches)-1; $i>=1; $i--){
+						$status = str_replace('$'.$i, $matches[$i], $status);
+					}
+					break;
+				}
+			}
+		}
+		// パターンになかった場合
+		if(empty($status) && !empty($reply_file)){
+			$status = $this->get_next_tweet($reply_file);
+		}
+		if(empty($status) || $status == '[[END]]'){
+			return NULL;
+		}
+		$screen_name = $reply['user']['screen_name'];
+		$status = '@' . $screen_name . ' ' . $status;
+		$status = $this->make_tweet($status, $reply);
+		$in_reply_to = $reply['id_str'];
+
+		return array('status'=>$status, 'in_reply_to_status_id'=>$in_reply_to);
 	}
 
 	/**
@@ -104,9 +177,46 @@ class TureBotter
 		}
 	}
 
+	public function reply($interval=2, $replyFile='data.txt', $replyPatternFile='reply_pattern.php'){
+		if(preg_match('/\.php$/', $replyPatternFile) == 0){
+			$message = "replyPatternFile はPHPファイルでなければなりません: {$replyPatternFile}";
+			$this->output('E', 'reply', $message);
+			return $this->make_error(ERR_ID__ILLEGAL_FILE, $message);
+		}
+		$from = isset($this->cache_data['replied_max_id'])?$this->cache_data['replied_max_id']:NULL;
+		$response = $this->twitter_get_replies($from);
+		if(count($response)===0){
+			return array();
+		}
+		// 受け取ったIDを記録
+		$this->cache_data['replied_max_id'] = $response[0]['id_str'];
+
+		$replies = $this->filter_tweets($response);
+		$result = array();
+		foreach($replies as $reply){
+			$replyTweet = $this->make_reply_tweet($reply, $replyFile, $replyPatternFile);
+			if($replyTweet===NULL){
+				continue;
+			}
+			$paramater = array(
+					'status' => $replyTweet['status'],
+					'in_reply_to_status_id' => $replyTweet['in_reply_to_status_id']);
+			$response = $this->twitter_update_status($paramater);
+			if(isset($response['error'])){
+				$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
+				$this->output('E', 'post', $message);
+				$result[]= $this->make_error(ERR_ID__FAILED_API, $message);
+			}else{
+				$this->output('I', 'reply', "updated status: {$replyTweet['status']}");
+				$result[]=array('result'=>'success', 'response'=>$response);
+			}
+		}
+		return $result;
+	}
+
 	/**
 	 * 指定した文字列を投稿する
-	 * @param string $status 投稿する文字列
+	 * @param string $status_text 投稿する文字列
 	 */
 	public function post($status_text){
 		$status = $this->make_tweet($status_text);
@@ -129,7 +239,7 @@ class TureBotter
 	 * @return array
 	 */
 	protected function twitter_api($request_type, $endpoint, $value=array()){
-		$response = $this->consumer->sendRequest(TWITTER_API_BASE_URL.$endpoint.'.json', $value, "POST")->getResponse();
+		$response = $this->consumer->sendRequest(TWITTER_API_BASE_URL.$endpoint.'.json', $value, $request_type)->getResponse();
 		$json = json_decode($response->getBody(), true);
 		if($response->getStatus()>=400){
 			$this->output('E', 'api', "twitter returned {$response->getStatus()}: ".print_r($json, true));
@@ -145,5 +255,13 @@ class TureBotter
 	 */
 	protected function twitter_update_status($parameters){
 		return $this->twitter_api('POST', 'statuses/update', $parameters);
+	}
+
+	protected function twitter_get_replies($since_id=NULL){
+		$paramaters=array();
+		if($since_id!==NULL){
+			$paramaters['since_id'] = $since_id;
+		}
+		return $this->twitter_api('GET', 'statuses/mentions_timeline', $paramaters);
 	}
 }
