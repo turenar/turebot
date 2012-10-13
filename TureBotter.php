@@ -198,10 +198,10 @@ class TureBotter
 			if($replyTweet===NULL){
 				continue;
 			}
-			$paramater = array(
+			$parameter = array(
 					'status' => $replyTweet['status'],
 					'in_reply_to_status_id' => $replyTweet['in_reply_to_status_id']);
-			$response = $this->twitter_update_status($paramater);
+			$response = $this->twitter_update_status($parameter);
 			if(isset($response['error'])){
 				$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
 				$this->output('E', 'post', $message);
@@ -258,10 +258,10 @@ class TureBotter
 	}
 
 	protected function twitter_get_replies($since_id=NULL){
-		$paramaters=array();
+		$parameters=array();
 		if($since_id!==NULL){
-			$paramaters['since_id'] = $since_id;
+			$parameters['since_id'] = $since_id;
 		}
-		return $this->twitter_api('GET', 'statuses/mentions_timeline', $paramaters);
+		return $this->twitter_api('GET', 'statuses/mentions_timeline', $parameters);
 	}
 }
