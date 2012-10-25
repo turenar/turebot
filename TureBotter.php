@@ -118,8 +118,9 @@ class TureBotter
 	 * ツイートをフォーマットしたりとか
 	 * @param string $text テキスト
 	 * @param array $info フォーマット情報<br>
-	 *   bool ['footer_disable']: フッタをつけない
-	 * @return mixed
+	 *   bool	['footer_disable']: フッタをつけない
+	 *   array	['in_reply_to']: リプライ先ツイート
+	 * @return mixed 置き換え済みステータステキスト
 	 */
 	protected function make_tweet($text, array $info=array()){
 		if(preg_match('@{.+?}@', $text) == 1){
@@ -129,6 +130,24 @@ class TureBotter
 			$text = str_replace('{hour}', date('G'), $text);
 			$text = str_replace('{minute}', date('i'), $text);
 			$text = str_replace('{second}', date('s'), $text);
+
+			$reply = $this->_get_value($info, 'in_reply_to');
+			if(strpos($text, '{id}') !== FALSE){
+				if($reply != NULL){
+					$text = str_replace('{id}', $reply['user']['screen_name'], $text);
+				}
+			}
+			if(strpos($text, '{name}') !== FALSE){
+				if($reply != NULL){
+					$text = str_replace('{name}', $reply['user']['name'], $text);
+				}
+			}
+			if(strpos($text, '{tweet}') !== FALSE){
+				if($reply != NULL){
+					$tweet_text = preg_replace('/\.?@[a-zA-Z0-9\-_]+\s/u', "", $reply['text']);
+					$text = str_replace('{tweet}', $tweet_text, $text);
+				}
+			}
 		}
 
 		if($this->_get_value($info, 'footer_disable', false) === false){
@@ -197,7 +216,7 @@ class TureBotter
 		}
 		$screen_name = $reply['user']['screen_name'];
 		$status = '@' . $screen_name . ' ' . $status;
-		$status = $this->make_tweet($status, array('reply_to'=>$reply));
+		$status = $this->make_tweet($status, array('in_reply_to'=>$reply));
 		$in_reply_to = $reply['id_str'];
 
 		return array('status'=>$status, 'in_reply_to_status_id'=>$in_reply_to);
@@ -234,8 +253,8 @@ class TureBotter
 		}
 		$from = isset($this->cache_data['replied_max_id'])?$this->cache_data['replied_max_id']:NULL;
 		$response = $this->twitter_get_replies($from);
-		if(count($response)===0){
-			return array();
+		if(count($response)===0 || isset($response['error'])){
+			return $response;
 		}
 		// 受け取ったIDを記録
 		$this->cache_data['replied_max_id'] = $response[0]['id_str'];
