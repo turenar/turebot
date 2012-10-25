@@ -59,6 +59,11 @@ class TureBotter
 	protected function output($level, $category, $text){
 		echo $level.':'.$text."\n";
 	}
+
+	protected function _get_value(array $arr, $index, $default=NULL){
+		return isset($arr[$index]) ? $arr[$index] : $default;
+	}
+
 	/**
 	 * ツイートデータを読み込む
 	 *
@@ -99,7 +104,14 @@ class TureBotter
 				"error"=>array("eid"=>$errid, "message"=>$message));
 	}
 
-	protected function make_tweet($text, $reply=NULL){
+	/**
+	 * ツイートをフォーマットしたりとか
+	 * @param string $text テキスト
+	 * @param array $info フォーマット情報<br>
+	 *   bool ['footer_disable']: フッタをつけない
+	 * @return mixed
+	 */
+	protected function make_tweet($text, array $info=array()){
 		if(preg_match('@{.+?}@', $text) == 1){
 			$text = str_replace('{year}', date('Y'), $text);
 			$text = str_replace('{month}', date('n'), $text);
@@ -108,7 +120,10 @@ class TureBotter
 			$text = str_replace('{minute}', date('i'), $text);
 			$text = str_replace('{second}', date('s'), $text);
 		}
-		$text .= $this->footer;
+
+		if($this->_get_value($info, 'footer_disable', false) === false){
+			$text .= $this->footer;
+		}
 		return $text;
 	}
 
@@ -158,7 +173,7 @@ class TureBotter
 		}
 		$screen_name = $reply['user']['screen_name'];
 		$status = '@' . $screen_name . ' ' . $status;
-		$status = $this->make_tweet($status, $reply);
+		$status = $this->make_tweet($status, array('reply_to'=>$reply));
 		$in_reply_to = $reply['id_str'];
 
 		return array('status'=>$status, 'in_reply_to_status_id'=>$in_reply_to);
