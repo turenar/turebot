@@ -17,6 +17,7 @@ class TureBotter
 	protected	$screen_name;
 	private	$cache_file;
 	protected	$cache_data;
+	protected	$footer;
 
 	public function __construct($config_file="setting.php"){
 		$peardir = dirname(__FILE__)."/PEAR";
@@ -48,6 +49,7 @@ class TureBotter
 		$this->screen_name = $screen_name;
 		$this->cache_file = $cache_file;
 		$this->cache_data = $cache_data;
+		$this->footer = $footer;
 	}
 
 	function __destruct(){
@@ -106,6 +108,7 @@ class TureBotter
 			$text = str_replace('{minute}', date('i'), $text);
 			$text = str_replace('{second}', date('s'), $text);
 		}
+		$text .= $this->footer;
 		return $text;
 	}
 

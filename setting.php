@@ -7,3 +7,6 @@ $access_token_secret = "";
 
 // ユーザー名 (@以降) を指定。
 $screen_name = "";
+
+// フッタの設定
+$footer = "";
