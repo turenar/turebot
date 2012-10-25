@@ -19,6 +19,10 @@ class TureBotter
 	protected	$cache_data;
 	protected	$footer;
 
+	/**
+	 * インスタンスの作成
+	 * @param string $config_file 設定ファイル
+	 */
 	public function __construct($config_file="setting.php"){
 		$peardir = dirname(__FILE__)."/PEAR";
 		set_include_path(get_include_path().PATH_SEPARATOR.$peardir);
@@ -56,6 +60,12 @@ class TureBotter
 		file_put_contents($this->cache_file, serialize($this->cache_data));
 	}
 
+	/**
+	 * ログ出力
+	 * @param string $level EとかWとかIとか
+	 * @param string $category カテゴリ名
+	 * @param string $text ログテキスト
+	 */
 	protected function output($level, $category, $text){
 		echo $level.':'.$text."\n";
 	}
@@ -127,6 +137,11 @@ class TureBotter
 		return $text;
 	}
 
+	/**
+	 * ツイートをフィルタする。古いやつの除去、自分のツイートの除去、RTの除去。
+	 * @param array $tweets ツイートの配列
+	 * @return array フィルタ済み配列
+	 */
 	protected function filter_tweets($tweets){
 		$result = array();
 		$limitTime = time() - 60*60; // あまりにも古いやつは捨てる
@@ -149,7 +164,16 @@ class TureBotter
 		return $result;
 	}
 
-	protected function make_reply_tweet($reply, $reply_file, $reply_pattern_file){
+	/**
+	 * リプライツイートを作る
+	 * @param array $reply
+	 * @param string $reply_file 既定リプライデータファイル
+	 * @param string $reply_pattern_file リプライパターンファイル
+	 * @return NULL|array
+	 *   NULLの場合は返すツイートがない。その他の場合は、
+	 *   [status], [in_reply_to_status_id]の配列を返す。
+	 */
+	protected function make_reply_tweet(array $reply, $reply_file, $reply_pattern_file){
 		$this->load_tweet($reply_pattern_file);
 		$pattern_data = $this->tweet_data[$reply_pattern_file];
 		$text = $reply['text'];
@@ -195,7 +219,14 @@ class TureBotter
 		}
 	}
 
-	public function reply($interval=2, $replyFile='data.txt', $replyPatternFile='reply_pattern.php'){
+	/**
+	 * リプライを行う
+	 * @param int $ignore 無視される (EasyBotterとの互換用)
+	 * @param string $replyFile リプライデータファイル
+	 * @param string $replyPatternFile リプライパターンファイル
+	 * @return array 実際に投稿したもののAPIデータを配列で返す。
+	 */
+	public function reply($ignore=2, $replyFile='data.txt', $replyPatternFile='reply_pattern.php'){
 		if(preg_match('/\.php$/', $replyPatternFile) == 0){
 			$message = "replyPatternFile はPHPファイルでなければなりません: {$replyPatternFile}";
 			$this->output('E', 'reply', $message);
@@ -275,6 +306,11 @@ class TureBotter
 		return $this->twitter_api('POST', 'statuses/update', $parameters);
 	}
 
+	/**
+	 * リプライを取得する
+	 * @param string $since_id パラメータsince_id。
+	 * @return array
+	 */
 	protected function twitter_get_replies($since_id=NULL){
 		$parameters=array();
 		if($since_id!==NULL){
