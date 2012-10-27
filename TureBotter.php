@@ -232,6 +232,37 @@ class TureBotter
 	}
 
 	/**
+	 * 自動フォロー返しをする
+	 * @return array
+	 *   <p>following/followerが取得できなかったときはerror配列。</p>
+	 *   <p>取得できた場合はつぎの配列の配列: フォローできた時該当ユーザーのuser配列、フォローできなかったときはエラー配列</p>
+	 */
+	public function autoFollow(){
+		$followers = $this->twitter_get_followers_all();
+		if(isset($followers['error'])){
+			return $followers; // API Error Array
+		}
+
+		$following = $this->twitter_get_followings_all();
+		if(isset($following['error'])){
+			return $following; // API Error Array
+		}
+
+		$follow_list = array_diff($followers, $following);
+		$results = array();
+		foreach($follow_list as $id){
+			$response = $this->twitter_follow_user($id);
+			if(isset($response['error'])){
+				$this->log('W', 'follow', "Failed following user (id=$id): {$response['error']['message']}");
+			}else{
+				$this->log('I', 'follow', "Followed user: {$response['screen_name']}");
+			}
+			$results[] = $response;
+		}
+		return $results;
+	}
+
+	/**
 	 * ランダムにポストする
 	 * @param string $datafile データファイル名
 	 * @return array [result]="error|success"
@@ -376,7 +407,7 @@ class TureBotter
 			return $this->make_error(
 					ERR_ID__ILLEGAL_JSON, $response->getStatus(), $response);
 		}else if($response->getStatus()>=300){
-			$this->log('E', 'api', "(endpoint=$endpoint) twitter returned {$response->getStatus()}: ".print_r($json, true));
+			$this->log('E', 'api', "twitter (endpoint=$endpoint) returned {$response->getStatus()}: ".print_r($json, true));
 			return $this->make_error(
 					ERR_ID__FAILED_API, $response->getStatus().":".$response->getReasonPhrase(),
 					$response);
@@ -392,6 +423,11 @@ class TureBotter
 	 */
 	protected function twitter_update_status($parameters){
 		return $this->twitter_api('POST', 'statuses/update', $parameters);
+	}
+
+	protected function twitter_follow_user($id){
+		$parameters = array('user_id'=>$id);
+		return $this->twitter_api('POST', 'friendships/create', $parameters);
 	}
 
 	/**
@@ -420,5 +456,69 @@ class TureBotter
 			$parameters['since_id'] = $since_id;
 		}
 		return $this->twitter_api('GET', 'statuses/home_timeline', $parameters);
+	}
+
+	/**
+	 * フォロワーを取得する
+	 * @param string $screen_name フォロワーを取得するユーザー
+	 * @param int $cursor カーソル値 (default: -1)
+	 * @return array
+	 */
+	protected function twitter_get_followers($screen_name, $cursor='-1'){
+		// stringify_idsはuser idを文字列として取得するために必要。
+		// とりあえず数年はintで大丈夫だと思われるが、念の為。
+		$parameters = array('screen_name'=>$screen_name, 'cursor'=>$cursor, 'stringify_ids'=>1);
+		return $this->twitter_api('GET', 'followers/ids', $parameters);
+	}
+
+	/**
+	 * ログインしているユーザーのフォロワーをすべて取得する
+	 * @return array フォロワーの<b>固有id</b>の<b>文字列型</b>配列
+	 */
+	protected function twitter_get_followers_all(){
+		$followers = array();
+		$screen_name = $this->screen_name;
+		$cursor = -1;
+		do{
+			$response = $this->twitter_get_followers($screen_name, $cursor);
+			if(isset($response['error'])){
+				return $response;
+			}
+			$followers = array_merge($followers, $response['ids']);
+			$cursor = $response['next_cursor_str'];
+		} while($cursor !== '0');
+		return $followers;
+	}
+
+	/**
+	 * フォロイーを取得する
+	 * @param string $screen_name フォロイーを取得するユーザー
+	 * @param int $cursor カーソル値 (default: -1)
+	 * @return array
+	 */
+	protected function twitter_get_followings($screen_name, $cursor='-1'){
+		// stringify_idsはuser idを文字列として取得するために必要。
+		// とりあえず数年はintで大丈夫だと思われるが、念の為。
+		$parameters = array('screen_name'=>$screen_name, 'cursor'=>$cursor, 'stringify_ids'=>1);
+		return $this->twitter_api('GET', 'friends/ids', $parameters);
+	}
+
+	/**
+	 * ログインしているユーザーのフォロイーをすべて取得する
+	 * @return array フォロイーの<b>固有id</b>の<b>文字列型</b>配列
+	 */
+	protected function twitter_get_followings_all(){
+		$followings = array();
+		$screen_name = $this->screen_name;
+		$cursor = '-1';
+		do{
+			$response = $this->twitter_get_followings($screen_name, $cursor);
+			if(isset($response['error'])){
+				return $response;
+			}
+			$followings = array_merge($followings, $response['ids']);
+			$cursor = $response['next_cursor_str'];
+		} while($cursor !== '0');
+		return $followings;
 	}
 }
