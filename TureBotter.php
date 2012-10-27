@@ -6,6 +6,10 @@ define("ERR_ID__ILLEGAL_JSON", 4);
 define("TWITTER_API_BASE_URL","https://api.twitter.com/1.1/");
 
 
+/**
+ * TureBotterクラス。
+ * @author turenar <snswinhaiku dot lo at gmail dot com>
+*/
 class TureBotter
 {
 	protected	$consumer;
@@ -103,6 +107,15 @@ class TureBotter
 		}else{
 			return $tweet_data[array_rand($tweet_data)];
 		}
+	}
+
+	/**
+	 * 指定した配列がerror配列かどうかを返す。
+	 * @param array $arr このクラスの関数の返り値
+	 * @return bool error配列かどうか
+	 */
+	public function is_error(array $arr){
+		return isset($arr['error']);
 	}
 
 	protected function make_error($errid, $message, $extended = NULL){
@@ -239,12 +252,12 @@ class TureBotter
 	 */
 	public function autoFollow(){
 		$followers = $this->twitter_get_followers_all();
-		if(isset($followers['error'])){
+		if($this->is_error($followers)){
 			return $followers; // API Error Array
 		}
 
 		$following = $this->twitter_get_followings_all();
-		if(isset($following['error'])){
+		if($this->is_error($following)){
 			return $following; // API Error Array
 		}
 
@@ -252,7 +265,7 @@ class TureBotter
 		$results = array();
 		foreach($follow_list as $id){
 			$response = $this->twitter_follow_user($id);
-			if(isset($response['error'])){
+			if($this->is_error($response)){
 				$this->log('W', 'follow', "Failed following user (id=$id): {$response['error']['message']}");
 			}else{
 				$this->log('I', 'follow', "Followed user: {$response['screen_name']}");
@@ -295,7 +308,7 @@ class TureBotter
 		$from = $this->_get_value($this->cache_data, 'replied_max_id');
 
 		$response = $this->twitter_get_replies($from);
-		if(count($response)===0 || isset($response['error'])){
+		if(count($response)===0 || $this->is_error($response)){
 			return $response;
 		}
 
@@ -315,7 +328,7 @@ class TureBotter
 					'status' => $replyTweet['status'],
 					'in_reply_to_status_id' => $replyTweet['in_reply_to_status_id']);
 			$response = $this->twitter_update_status($parameter);
-			if(isset($response['error'])){
+			if($this->is_error($response)){
 				$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
 				$this->log('E', 'post', $message);
 				$result[]= $this->make_error(ERR_ID__FAILED_API, $message, $response);
@@ -343,7 +356,7 @@ class TureBotter
 		$from = $this->_get_value($this->cache_data, 'replied_max_id');
 
 		$response = $this->twitter_get_timeline($from);
-		if(count($response)===0 || isset($response['error'])){
+		if(count($response)===0 || $this->is_error($response)){
 			return $response;
 		}
 
@@ -362,7 +375,7 @@ class TureBotter
 					'status' => $replyTweet['status'],
 					'in_reply_to_status_id' => $replyTweet['in_reply_to_status_id']);
 			$response = $this->twitter_update_status($parameter);
-			if(isset($response['error'])){
+			if($this->is_error($response)){
 				$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
 				$this->log('E', 'post', $message);
 				$result[]= $this->make_error(ERR_ID__FAILED_API, $message, $response);
@@ -382,7 +395,7 @@ class TureBotter
 	public function post($status_text){
 		$status = $this->make_tweet($status_text);
 		$response = $this->twitter_update_status(array("status" => $status));
-		if(isset($response['error'])){
+		if($this->is_error($response)){
 			$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
 			$this->log('E', 'post', $message);
 			return $this->make_error(ERR_ID__FAILED_API, $message);
@@ -481,7 +494,7 @@ class TureBotter
 		$cursor = -1;
 		do{
 			$response = $this->twitter_get_followers($screen_name, $cursor);
-			if(isset($response['error'])){
+			if($this->is_error($response)){
 				return $response;
 			}
 			$followers = array_merge($followers, $response['ids']);
@@ -513,7 +526,7 @@ class TureBotter
 		$cursor = '-1';
 		do{
 			$response = $this->twitter_get_followings($screen_name, $cursor);
-			if(isset($response['error'])){
+			if($this->is_error($response)){
 				return $response;
 			}
 			$followings = array_merge($followings, $response['ids']);
