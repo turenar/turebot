@@ -2,6 +2,7 @@
 define("ERR_ID__NOTHING_TO_TWEET", 1);
 define("ERR_ID__FAILED_API", 2);
 define("ERR_ID__ILLEGAL_FILE", 3);
+define("ERR_ID__ILLEGAL_JSON", 4);
 define("TWITTER_API_BASE_URL","https://api.twitter.com/1.1/");
 
 
@@ -307,16 +308,23 @@ class TureBotter
 	 * @param string $request_type POST or GET
 	 * @param string $endpoint エンドポイント名。例: statuses/update
 	 * @param array $value パラメータ
-	 * @return array
+	 * @return array 成功時はjson_decodeされた配列。エラー時はmake_errorされた配列。
 	 */
 	protected function twitter_api($request_type, $endpoint, $value=array()){
 		$response = $this->consumer->sendRequest(TWITTER_API_BASE_URL.$endpoint.'.json', $value, $request_type)->getResponse();
 		$json = json_decode($response->getBody(), true);
-		if($response->getStatus()>=400){
-			$this->log('E', 'api', "twitter returned {$response->getStatus()}: ".print_r($json, true));
-			return $this->make_error(ERR_ID__FAILED_API, $response->getStatus().":".$response->getReasonPhrase());
+		if($response === NULL){
+			$this->log('E', 'api', "twitter returned illegal json: $response");
+			return $this->make_error(
+					ERR_ID__ILLEGAL_JSON, $response->getStatus(), $response);
+		}else if($response->getStatus()>=400){
+			$this->log('E', 'api', "(endpoint=$endpoint) twitter returned {$response->getStatus()}: ".print_r($json, true));
+			return $this->make_error(
+					ERR_ID__FAILED_API, $response->getStatus().":".$response->getReasonPhrase(),
+					$response);
+		}else{
+			return $json;
 		}
-		return $json;
 	}
 
 	/**
