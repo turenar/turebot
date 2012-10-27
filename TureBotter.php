@@ -1,14 +1,9 @@
 <?php
-define("SQL_COMMAND_USERDATA", "CREATE TABLE `user_data` (
-		`userid` VARCHAR( 32 ) NOT NULL ,
-		`key` VARCHAR( 32 ) NOT NULL ,
-		`value` VARCHAR( 255 ) NULL ,
-		PRIMARY KEY ( `userid` , `key` )
-		) ENGINE = MYISAM CHARACTER SET utf8");
 define("ERR_ID__NOTHING_TO_TWEET", 1);
 define("ERR_ID__FAILED_API", 2);
 define("ERR_ID__ILLEGAL_FILE", 3);
 define("TWITTER_API_BASE_URL","https://api.twitter.com/1.1/");
+
 
 class TureBotter
 {
@@ -66,7 +61,7 @@ class TureBotter
 	 * @param string $category カテゴリ名
 	 * @param string $text ログテキスト
 	 */
-	protected function output($level, $category, $text){
+	public function log($level, $category, $text){
 		echo $level.':'.$text."\n";
 	}
 
@@ -92,6 +87,7 @@ class TureBotter
 			$this->tweet_data[$file] = file($file, FILE_IGNORE_NEW_LINES|FILE_SKIP_EMPTY_LINES);
 		}
 	}
+
 	/**
 	 * 次のツイートを取得する
 	 * @param string $file ツイートファイル名
@@ -108,10 +104,17 @@ class TureBotter
 		}
 	}
 
-	protected function make_error($errid, $message){
+	protected function make_error($errid, $message, $extended = NULL){
 		return array(
-				"result" => "error",
-				"error"=>array("eid"=>$errid, "message"=>$message));
+				'result' => 'error',
+				'error'=>array('eid'=>$errid, 'message'=>$message, 'extended'=>$extended));
+	}
+
+	protected function make_success(array $response){
+		return array(
+				'result' => 'success',
+				'response'=> $response
+		);
 	}
 
 	/**
@@ -120,7 +123,7 @@ class TureBotter
 	 * @param array $info フォーマット情報<br>
 	 *   bool	['footer_disable']: フッタをつけない
 	 *   array	['in_reply_to']: リプライ先ツイート
-	 * @return mixed 置き換え済みステータステキスト
+	 * @return string 置き換え済みステータステキスト
 	 */
 	protected function make_tweet($text, array $info=array()){
 		if(preg_match('@{.+?}@', $text) == 1){
@@ -231,7 +234,7 @@ class TureBotter
 		$status_text = $this->get_next_tweet($datafile);
 		if($status_text === NULL || trim($status_text) === ""){
 			$message = "投稿するメッセージがありません";
-			$this->output('E', 'post', $message);
+			$this->log('W', 'post', $message);
 			return $this->make_error(ERR_ID__NOTHING_TO_TWEET, $message);
 		}else{
 			return $this->post($status_text);
@@ -248,7 +251,7 @@ class TureBotter
 	public function reply($ignore=2, $replyFile='data.txt', $replyPatternFile='reply_pattern.php'){
 		if(preg_match('/\.php$/', $replyPatternFile) == 0){
 			$message = "replyPatternFile はPHPファイルでなければなりません: {$replyPatternFile}";
-			$this->output('E', 'reply', $message);
+			$this->log('E', 'reply', $message);
 			return $this->make_error(ERR_ID__ILLEGAL_FILE, $message);
 		}
 		$from = isset($this->cache_data['replied_max_id'])?$this->cache_data['replied_max_id']:NULL;
@@ -272,11 +275,11 @@ class TureBotter
 			$response = $this->twitter_update_status($parameter);
 			if(isset($response['error'])){
 				$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
-				$this->output('E', 'post', $message);
+				$this->log('E', 'post', $message);
 				$result[]= $this->make_error(ERR_ID__FAILED_API, $message);
 			}else{
-				$this->output('I', 'reply', "updated status: {$replyTweet['status']}");
-				$result[]=array('result'=>'success', 'response'=>$response);
+				$this->log('I', 'reply', "updated status: {$replyTweet['status']}");
+				$result[]= $this->make_success($response);
 			}
 		}
 		return $result;
@@ -291,26 +294,26 @@ class TureBotter
 		$response = $this->twitter_update_status(array("status" => $status));
 		if(isset($response['error'])){
 			$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
-			$this->output('E', 'post', $message);
+			$this->log('E', 'post', $message);
 			return $this->make_error(ERR_ID__FAILED_API, $message);
 		}else{
-			$this->output('I', 'post', "updated status: $status");
-			return array("result"=>"success","response"=>$response);
+			$this->log('I', 'post', "updated status: $status");
+			return $this->make_success($response);
 		}
 	}
 
 	/**
-	 * APIを呼び出す
-	 * @param unknown_type $request_type POST or GET
-	 * @param unknown_type $endpoint エンドポイント名。例: statuses/update
-	 * @param unknown_type $value パラメータ
+	 * Twitter v1.1 APIを呼び出す
+	 * @param string $request_type POST or GET
+	 * @param string $endpoint エンドポイント名。例: statuses/update
+	 * @param array $value パラメータ
 	 * @return array
 	 */
 	protected function twitter_api($request_type, $endpoint, $value=array()){
 		$response = $this->consumer->sendRequest(TWITTER_API_BASE_URL.$endpoint.'.json', $value, $request_type)->getResponse();
 		$json = json_decode($response->getBody(), true);
 		if($response->getStatus()>=400){
-			$this->output('E', 'api', "twitter returned {$response->getStatus()}: ".print_r($json, true));
+			$this->log('E', 'api', "twitter returned {$response->getStatus()}: ".print_r($json, true));
 			return $this->make_error(ERR_ID__FAILED_API, $response->getStatus().":".$response->getReasonPhrase());
 		}
 		return $json;
