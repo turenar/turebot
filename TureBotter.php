@@ -163,9 +163,10 @@ class TureBotter
 	/**
 	 * ツイートをフィルタする。古いやつの除去、自分のツイートの除去、RTの除去。
 	 * @param array $tweets ツイートの配列
+	 * @param bool $filter_reply @が含まれるツイートを除去するかどうか
 	 * @return array フィルタ済み配列
 	 */
-	protected function filter_tweets($tweets){
+	protected function filter_tweets($tweets, $filter_reply){
 		$result = array();
 		$limitTime = time() - 60*60; // あまりにも古いやつは捨てる
 		foreach($tweets as $tweet){
@@ -180,6 +181,10 @@ class TureBotter
 			// RT, QTを除外
 			$text = $tweet['text'];
 			if(strpos($text, 'RT') !== false || strpos($text, 'QT') !== false){
+				continue;
+			}
+			// $filter_reply==TRUEのとき@が含まれるツイートを除去
+			if($filter_reply && strpos($text, '@') !== false){
 				continue;
 			}
 			$result[] = $tweet;
@@ -255,15 +260,20 @@ class TureBotter
 			$this->log('E', 'reply', $message);
 			return $this->make_error(ERR_ID__ILLEGAL_FILE, $message);
 		}
-		$from = isset($this->cache_data['replied_max_id'])?$this->cache_data['replied_max_id']:NULL;
+
+		$from = $this->_get_value($this->cache_data, 'replied_max_id');
+
 		$response = $this->twitter_get_replies($from);
 		if(count($response)===0 || isset($response['error'])){
 			return $response;
 		}
+
+
 		// 受け取ったIDを記録
 		$this->cache_data['replied_max_id'] = $response[0]['id_str'];
 
-		$replies = $this->filter_tweets($response);
+		$replies = $this->filter_tweets($response, false);
+
 		$result = array();
 		foreach($replies as $reply){
 			$replyTweet = $this->make_reply_tweet($reply, $replyFile, $replyPatternFile);
@@ -277,13 +287,61 @@ class TureBotter
 			if(isset($response['error'])){
 				$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
 				$this->log('E', 'post', $message);
-				$result[]= $this->make_error(ERR_ID__FAILED_API, $message);
+				$result[]= $this->make_error(ERR_ID__FAILED_API, $message, $response);
 			}else{
 				$this->log('I', 'reply', "updated status: {$replyTweet['status']}");
 				$result[]= $this->make_success($response);
 			}
 		}
 		return $result;
+	}
+
+	/**
+	 * タイムラインに反応する。
+	 * @param int $ignore 無視される (EasyBotterとの互換用)
+	 * @param string $replyPatternFile リプライパターンファイル
+	 * @return array 実際に投稿したもののAPIデータを配列で返す。
+	 */
+	public function replyTimeline($ignore=2, $replyPatternFile='reply_pattern.php'){
+		if(preg_match('/\.php$/', $replyPatternFile) == 0){
+			$message = "replyPatternFile はPHPファイルでなければなりません: {$replyPatternFile}";
+			$this->log('E', 'replyTL', $message);
+			return $this->make_error(ERR_ID__ILLEGAL_FILE, $message);
+		}
+
+		$from = $this->_get_value($this->cache_data, 'replied_max_id');
+
+		$response = $this->twitter_get_timeline($from);
+		if(count($response)===0 || isset($response['error'])){
+			return $response;
+		}
+
+		// 受け取ったIDを記録
+		$this->cache_data['replied_timeline_max_id'] = $response[0]['id_str'];
+
+		$timeline = $this->filter_tweets($response, true);
+
+		$result = array();
+		foreach($timeline as $tweet){
+			$replyTweet = $this->make_reply_tweet($tweet, NULL, $replyPatternFile);
+			if($replyTweet===NULL){
+				continue;
+			}
+			$parameter = array(
+					'status' => $replyTweet['status'],
+					'in_reply_to_status_id' => $replyTweet['in_reply_to_status_id']);
+			$response = $this->twitter_update_status($parameter);
+			if(isset($response['error'])){
+				$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
+				$this->log('E', 'post', $message);
+				$result[]= $this->make_error(ERR_ID__FAILED_API, $message, $response);
+			}else{
+				$this->log('I', 'replyTL', "updated status: {$replyTweet['status']}");
+				$result[]= $this->make_success($response);
+			}
+		}
+		return $result;
+
 	}
 
 	/**
@@ -317,7 +375,7 @@ class TureBotter
 			$this->log('E', 'api', "twitter returned illegal json: $response");
 			return $this->make_error(
 					ERR_ID__ILLEGAL_JSON, $response->getStatus(), $response);
-		}else if($response->getStatus()>=400){
+		}else if($response->getStatus()>=300){
 			$this->log('E', 'api', "(endpoint=$endpoint) twitter returned {$response->getStatus()}: ".print_r($json, true));
 			return $this->make_error(
 					ERR_ID__FAILED_API, $response->getStatus().":".$response->getReasonPhrase(),
@@ -343,9 +401,24 @@ class TureBotter
 	 */
 	protected function twitter_get_replies($since_id=NULL){
 		$parameters=array();
+		$parameters['count'] = 200;
 		if($since_id!==NULL){
 			$parameters['since_id'] = $since_id;
 		}
 		return $this->twitter_api('GET', 'statuses/mentions_timeline', $parameters);
+	}
+
+	/**
+	 * タイムラインを取得する
+	 * @param string $since_id パラメータsince_id。
+	 * @return array
+	 */
+	protected function twitter_get_timeline($since_id=NULL){
+		$parameters=array();
+		$parameters['count'] = 200;
+		if($since_id!==NULL){
+			$parameters['since_id'] = $since_id;
+		}
+		return $this->twitter_api('GET', 'statuses/home_timeline', $parameters);
 	}
 }
