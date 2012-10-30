@@ -18,6 +18,7 @@ class TureBotter
 	private	$cache_file;
 	protected	$cache_data;
 	protected	$footer;
+	protected	$log_pointer;
 
 	/**
 	 * インスタンスの作成
@@ -30,6 +31,12 @@ class TureBotter
 		header("Content-Type: text/plain");
 
 		require_once($config_file);
+
+		$logfp = fopen("{$config_file}.log", 'a');
+		if(flock($logfp, LOCK_EX | LOCK_NB)==false){
+			$this->log('E', 'bot', 'Unable to obtain lock...');
+			throw new Exception('同時起動を避けるため起動を中止します。');
+		}
 
 		require_once('HTTP/OAuth/Consumer.php');
 		$consumer = new HTTP_OAuth_Consumer($consumer_key, $consumer_secret);
@@ -54,10 +61,13 @@ class TureBotter
 		$this->cache_file = $cache_file;
 		$this->cache_data = $cache_data;
 		$this->footer = $footer;
+		$this->log_pointer = $logfp;
 	}
 
 	function __destruct(){
 		file_put_contents($this->cache_file, serialize($this->cache_data));
+		flock($this->log_pointer, LOCK_UN);
+		fclose($this->log_pointer);
 	}
 
 	/**
@@ -68,6 +78,9 @@ class TureBotter
 	 */
 	public function log($level, $category, $text){
 		echo $level.':'.$text."\n";
+
+		$puttext = sprintf("%s:[%s %s] %s\n", $level, date('Y/m/d H:i:s'), $category, $text);
+		fputs($this->log_pointer, $puttext);
 	}
 
 	protected function _get_value(array $arr, $index, $default=NULL){
@@ -474,7 +487,7 @@ class TureBotter
 	/**
 	 * フォロワーを取得する
 	 * @param string $screen_name フォロワーを取得するユーザー
-	 * @param int $cursor カーソル値 (default: -1)
+	 * @param string $cursor カーソル値 (default: -1)
 	 * @return array
 	 */
 	protected function twitter_get_followers($screen_name, $cursor='-1'){
@@ -506,7 +519,7 @@ class TureBotter
 	/**
 	 * フォロイーを取得する
 	 * @param string $screen_name フォロイーを取得するユーザー
-	 * @param int $cursor カーソル値 (default: -1)
+	 * @param string $cursor カーソル値 (default: -1)
 	 * @return array
 	 */
 	protected function twitter_get_followings($screen_name, $cursor='-1'){
