@@ -19,6 +19,8 @@ class TureBotter
 	protected	$cache_data;
 	protected	$footer;
 	protected	$log_pointer;
+	private	$lock_pointer;
+	private	$lock_file;
 
 	/**
 	 * インスタンスの作成
@@ -32,8 +34,17 @@ class TureBotter
 
 		require_once($config_file);
 
-		$logfp = fopen("{$config_file}.log", 'a');
-		if(flock($logfp, LOCK_EX | LOCK_NB)==false){
+		$_flocktype = isset($flocktype) ? $flocktype : 'flock';
+
+		if($_flocktype == 'file'){
+			$lock_file = "{$config_file}.lock";
+			$lockfp = @fopen($lock_file, 'x');
+			if($lockfp===FALSE){
+				throw new Exception('同時起動を避けるため起動を中止します。');
+			}
+		}
+		$logfp = fopen("{$config_file}.log", 'at');
+		if($_flocktype=='flock' && flock($logfp, LOCK_EX|LOCK_NB)==false){
 			$this->log('E', 'bot', 'Unable to obtain lock...');
 			throw new Exception('同時起動を避けるため起動を中止します。');
 		}
@@ -62,12 +73,20 @@ class TureBotter
 		$this->cache_data = $cache_data;
 		$this->footer = $footer;
 		$this->log_pointer = $logfp;
+		$this->lock_pointer = $lockfp;
+		$this->lock_file = $lock_file;
 	}
 
 	function __destruct(){
 		file_put_contents($this->cache_file, serialize($this->cache_data));
-		flock($this->log_pointer, LOCK_UN);
+		if($this->lock_pointer === NULL){
+			flock($this->log_pointer, LOCK_UN);
+		}
 		fclose($this->log_pointer);
+		if($this->lock_pointer !== NULL){
+			fclose($this->lock_pointer);
+			unlink($this->lock_file);
+		}
 	}
 
 	/**
