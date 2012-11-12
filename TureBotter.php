@@ -21,6 +21,7 @@ class TureBotter
 	protected	$log_pointer;
 	private	$lock_pointer;
 	private	$lock_file;
+	private	$log_buffer;
 
 	/**
 	 * インスタンスの作成
@@ -32,9 +33,15 @@ class TureBotter
 		date_default_timezone_set("Asia/Tokyo");
 		header("Content-Type: text/plain");
 
+		$cfg = array();
 		require_once($config_file);
-
-		$_flocktype = isset($flocktype) ? $flocktype : 'flock';
+		$_consumer_key = $this->_get_cfg_value($cfg, 'consumer_key');
+		$_consumer_secret = $this->_get_cfg_value($cfg, 'consumer_secret');;
+		$_access_token = $this->_get_cfg_value($cfg, 'access_token');;
+		$_access_token_secret = $this->_get_cfg_value($cfg, 'access_token_secret');;
+		$_screen_name = $this->_get_cfg_value($cfg, 'screen_name');
+		$_footer = $this->_get_cfg_value($cfg, 'footer');
+		$_flocktype = $this->_get_cfg_value($cfg, 'locktype', 'flock', array('flock','file','none'));
 
 		if($_flocktype == 'file'){
 			$lock_file = "{$config_file}.lock";
@@ -50,14 +57,14 @@ class TureBotter
 		}
 
 		require_once('HTTP/OAuth/Consumer.php');
-		$consumer = new HTTP_OAuth_Consumer($consumer_key, $consumer_secret);
+		$consumer = new HTTP_OAuth_Consumer($_consumer_key, $_consumer_secret);
 		$http_request = new HTTP_Request2();
 		$http_request->setConfig('ssl_verify_peer',false);
 		$consumer_request = new HTTP_OAuth_Consumer_Request();
 		$consumer_request->accept($http_request);
 		$consumer->accept($consumer_request);
-		$consumer->setToken($access_token);
-		$consumer->setTokenSecret($access_token_secret);
+		$consumer->setToken($_access_token);
+		$consumer->setTokenSecret($_access_token_secret);
 
 		$cache_file = "{$config_file}.cache";
 		if(file_exists($cache_file)){
@@ -68,13 +75,14 @@ class TureBotter
 
 		$this->consumer = $consumer;
 		$this->tweet_data = array();
-		$this->screen_name = $screen_name;
+		$this->screen_name = $_screen_name;
 		$this->cache_file = $cache_file;
 		$this->cache_data = $cache_data;
-		$this->footer = $footer;
+		$this->footer = $_footer;
 		$this->log_pointer = $logfp;
 		$this->lock_pointer = $lockfp;
 		$this->lock_file = $lock_file;
+		$this->log_buffer = array();
 	}
 
 	function __destruct(){
@@ -99,11 +107,46 @@ class TureBotter
 		echo $level.':'.$text."\n";
 
 		$puttext = sprintf("%s:[%s %s] %s\n", $level, date('Y/m/d H:i:s'), $category, $text);
-		fputs($this->log_pointer, $puttext);
+		if($this->log_pointer === NULL){
+			$this->log_buffer[] = $puttext;
+		}else{
+			foreach($this->log_buffer as $text){
+				fputs($this->log_pointer, $text);
+			}
+			fputs($this->log_pointer, $puttext);
+		}
 	}
 
+	/**
+	 * 配列から値を取得する。$indexが存在しないとき$defaultを返す
+	 * @param array $arr 配列
+	 * @param mixed $index キー
+	 * @param mixed $default デフォルト値
+	 * @return mixed $arr[$index]または$default
+	 */
 	protected function _get_value(array $arr, $index, $default=NULL){
 		return isset($arr[$index]) ? $arr[$index] : $default;
+	}
+
+	/**
+	 * 配列から値を取得する (値のチェックを行う)。$indexが存在しないとき$defaultを返す。
+	 * @param array $arr 配列
+	 * @param mixed $index キー
+	 * @param mixed $default デフォルト値
+	 * @return mixed $arr[$index]または$default
+	 */
+	protected function _get_cfg_value(array $arr, $index, $default=NULL, array $vallist=NULL){
+		if(isset($arr[$index]) === false){
+			return $default;
+		}
+		$value = $arr[$index];
+		if($vallist !== NULL){
+			if(in_array($value, $vallist) === false){
+				$this->log('W', 'config', "Illegal config value (key=$index): $value. Use default ($default)");
+				$value = $default;
+			}
+		}
+		return $value;
 	}
 
 	/**

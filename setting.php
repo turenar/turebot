@@ -1,15 +1,15 @@
 <?php
 // Access Tokenの設定
-$consumer_key = "";
-$consumer_secret = "";
-$access_token = "";
-$access_token_secret = "";
+$cfg['consumer_key'] = "";
+$cfg['consumer_secret'] = "";
+$cfg['access_token'] = "";
+$cfg['access_token_secret'] = "";
 
 // ユーザー名 (@以降) を指定。
-$screen_name = "";
+$cfg['screen_name'] = "";
 
 // フッタの設定
-$footer = "";
+$cfg['footer'] = "";
 
 
 // ==== 高度な設定 ====
@@ -19,4 +19,4 @@ $footer = "";
 // fileを指定した場合ロックファイルを作成して排他処理を行います。
 // noneを指定した場合排他処理を行いません。
 //   [値: (flock|file|none)]
-$locktype = 'flock';
+$cfg['locktype'] = 'flock';
