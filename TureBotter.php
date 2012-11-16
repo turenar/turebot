@@ -113,6 +113,7 @@ class TureBotter
 			foreach($this->log_buffer as $text){
 				fputs($this->log_pointer, $text);
 			}
+			$this->log_buffer = array();
 			fputs($this->log_pointer, $puttext);
 		}
 	}
