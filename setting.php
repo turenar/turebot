@@ -5,9 +5,6 @@ $cfg['consumer_secret'] = "";
 $cfg['access_token'] = "";
 $cfg['access_token_secret'] = "";
 
-// ユーザー名 (@以降) を指定。
-$cfg['screen_name'] = "";
-
 // フッタの設定
 $cfg['footer'] = "";
 

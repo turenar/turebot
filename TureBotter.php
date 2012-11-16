@@ -22,6 +22,7 @@ class TureBotter
 	private	$lock_pointer;
 	private	$lock_file;
 	private	$log_buffer;
+	protected	$config;
 
 	/**
 	 * インスタンスの作成
@@ -39,7 +40,6 @@ class TureBotter
 		$_consumer_secret = $this->_get_cfg_value($cfg, 'consumer_secret');;
 		$_access_token = $this->_get_cfg_value($cfg, 'access_token');;
 		$_access_token_secret = $this->_get_cfg_value($cfg, 'access_token_secret');;
-		$_screen_name = $this->_get_cfg_value($cfg, 'screen_name');
 		$_footer = $this->_get_cfg_value($cfg, 'footer');
 		$_flocktype = $this->_get_cfg_value($cfg, 'locktype', 'flock', array('flock','file','none'));
 
@@ -75,7 +75,6 @@ class TureBotter
 
 		$this->consumer = $consumer;
 		$this->tweet_data = array();
-		$this->screen_name = $_screen_name;
 		$this->cache_file = $cache_file;
 		$this->cache_data = $cache_data;
 		$this->footer = $_footer;
@@ -83,6 +82,14 @@ class TureBotter
 		$this->lock_pointer = $lockfp;
 		$this->lock_file = $lock_file;
 		$this->log_buffer = array();
+		$this->config = $cfg;
+
+		$user_info = $this->get_user_information();
+		if($user_info === NULL){
+			$this->log('E', 'api', 'Could not retrieve login-ed user information. Please check credentials!');
+			die;
+		}
+		$this->screen_name = $user_info['screen_name'];
 	}
 
 	function __destruct(){
@@ -545,6 +552,33 @@ class TureBotter
 			$parameters['since_id'] = $since_id;
 		}
 		return $this->twitter_api('GET', 'statuses/home_timeline', $parameters);
+	}
+
+	protected function twitter_verify_credentials(){
+		return $this->twitter_api('GET', 'account/verify_credentials', array('skip_status'=>1));
+	}
+
+	public function get_user_information(){
+		$data = $this->_get_value($this->cache_data, 'logining_user');
+		$cfg = $this->config;
+		if(  $data === NULL
+		  || $data['updated_date']+3600 >= time()
+		  || $data['access_token'] != $cfg['access_token']) {
+			$user = $this->twitter_verify_credentials();
+			if($this->is_error($user)){
+				$user = $this->twitter_verify_credentials();
+				if($this->is_error($user)){
+					return $data===NULL ? NULL : $data['user']; // expired cache or NULL
+				}
+			}
+
+			$data = array(
+				'user' => $user,
+				'updated_date' => time(),
+				'access_token' => $cfg['access_token']);
+			$this->cache_data['logining_user'] = $data;
+		}
+		return $data['user'];
 	}
 
 	/**
