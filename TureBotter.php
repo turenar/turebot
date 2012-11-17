@@ -37,9 +37,9 @@ class TureBotter
 		$cfg = array();
 		require_once($config_file);
 		$_consumer_key = $this->_get_cfg_value($cfg, 'consumer_key');
-		$_consumer_secret = $this->_get_cfg_value($cfg, 'consumer_secret');;
-		$_access_token = $this->_get_cfg_value($cfg, 'access_token');;
-		$_access_token_secret = $this->_get_cfg_value($cfg, 'access_token_secret');;
+		$_consumer_secret = $this->_get_cfg_value($cfg, 'consumer_secret');
+		$_access_token = $this->_get_cfg_value($cfg, 'access_token');
+		$_access_token_secret = $this->_get_cfg_value($cfg, 'access_token_secret');
 		$_footer = $this->_get_cfg_value($cfg, 'footer');
 		$_flocktype = $this->_get_cfg_value($cfg, 'locktype', 'flock', array('flock','file','none'));
 
@@ -561,9 +561,10 @@ class TureBotter
 	public function get_user_information(){
 		$data = $this->_get_value($this->cache_data, 'logining_user');
 		$cfg = $this->config;
-		if(  $data === NULL
-		  || $data['updated_date']+3600 >= time()
-		  || $data['access_token'] != $cfg['access_token']) {
+		if($data !== NULL && $data['access_token'] != $cfg['access_token']) {
+			$data = NULL; // cached data may be different from logined user's
+		}
+		if($data === NULL || $data['updated_date']+3600 >= time()) {
 			$user = $this->twitter_verify_credentials();
 			if($this->is_error($user)){
 				$user = $this->twitter_verify_credentials();
