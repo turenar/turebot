@@ -460,7 +460,7 @@ class TureBotter
 			return $this->make_error(ERR_ID__ILLEGAL_FILE, $message);
 		}
 
-		$from = $this->_get_value($this->cache_data, 'replied_max_id');
+		$from = $this->_get_value($this->cache_data, 'replied_timeline_max_id');
 
 		$response = $this->twitter_get_timeline($from);
 		if(count($response)===0 || $this->is_error($response)){
