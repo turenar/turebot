@@ -594,7 +594,7 @@ class TureBotter
 		if($data !== NULL && $data['access_token'] != $cfg['access_token']) {
 			$data = NULL; // cached data may be different from logined user's
 		}
-		if($data === NULL || $data['updated_date']+3600 >= time()) {
+		if($data === NULL || $data['updated_date']+3600 <= time()) {
 			$user = $this->twitter_verify_credentials();
 			if($this->is_error($user)){
 				$user = $this->twitter_verify_credentials();
