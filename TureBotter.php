@@ -22,6 +22,7 @@ class TureBotter
 	private	$lock_pointer;
 	private	$lock_file;
 	private	$log_buffer;
+	protected	$log_debug_enabled;
 	protected	$config;
 
 	/**
@@ -42,6 +43,7 @@ class TureBotter
 		$_access_token_secret = $this->_get_cfg_value($cfg, 'access_token_secret');
 		$_footer = $this->_get_cfg_value($cfg, 'footer');
 		$_flocktype = $this->_get_cfg_value($cfg, 'locktype', 'flock', array('flock','file','none'));
+		$_log_debug_enabled = $this->_get_cfg_value($cfg, 'debug_logging', false, array(true,false));
 
 		if($_flocktype == 'file'){
 			$lock_file = "{$config_file}.lock";
@@ -82,6 +84,7 @@ class TureBotter
 		$this->lock_pointer = $lockfp;
 		$this->lock_file = $lock_file;
 		$this->log_buffer = array();
+		$this->log_debug_enabled = $_log_debug_enabled;
 		$this->config = $cfg;
 
 		$user_info = $this->get_user_information();
@@ -113,6 +116,10 @@ class TureBotter
 	public function log($level, $category, $text){
 		echo $level.':'.$text."\n";
 
+		if($level === 'D'){
+			return;
+		}
+
 		$puttext = sprintf("%s:[%s %s] %s\n", $level, date('Y/m/d H:i:s'), $category, $text);
 		if($this->log_pointer === NULL){
 			$this->log_buffer[] = $puttext;
@@ -125,6 +132,11 @@ class TureBotter
 		}
 	}
 
+	protected function debug($category, $text){
+		if($this->log_debug_enabled){
+			$this->log('D', $category, $text);
+		}
+	}
 	/**
 	 * 配列から値を取得する。$indexが存在しないとき$defaultを返す
 	 * @param array $arr 配列
@@ -334,11 +346,14 @@ class TureBotter
 	 *   <p>取得できた場合はつぎの配列の配列: フォローできた時該当ユーザーのuser配列、フォローできなかったときはエラー配列</p>
 	 */
 	public function autoFollow(){
+		$this->debug('follow', '#autoFollow()');
+		$this->debug('follow', ' Getting followers...');
 		$followers = $this->twitter_get_followers_all();
 		if($this->is_error($followers)){
 			return $followers; // API Error Array
 		}
 
+		$this->debug('follow', ' Getting followings...');
 		$following = $this->twitter_get_followings_all();
 		if($this->is_error($following)){
 			return $following; // API Error Array
@@ -355,6 +370,7 @@ class TureBotter
 			}
 			$results[] = $response;
 		}
+		$this->debug('follow', 'Finish');
 		return $results;
 	}
 
@@ -364,10 +380,11 @@ class TureBotter
 	 * @return array [result]="error|success"
 	 */
 	public function postRandom($datafile = "data.txt"){
+		$this->debug('post', '#postRandom');
 		$status_text = $this->get_next_tweet($datafile);
 		if($status_text === NULL || trim($status_text) === ""){
 			$message = "投稿するメッセージがありません";
-			$this->log('W', 'post', $message);
+			$this->log('I', 'post', $message);
 			return $this->make_error(ERR_ID__NOTHING_TO_TWEET, $message);
 		}else{
 			return $this->post($status_text);
@@ -387,19 +404,24 @@ class TureBotter
 			$this->log('E', 'reply', $message);
 			return $this->make_error(ERR_ID__ILLEGAL_FILE, $message);
 		}
+		$this->debug('reply', '#reply');
 
 		$from = $this->_get_value($this->cache_data, 'replied_max_id');
 
 		$response = $this->twitter_get_replies($from);
 		if(count($response)===0 || $this->is_error($response)){
+			$this->debug('reply', ' got nothing as replies');
+			$this->debug('reply', 'Finish');
 			return $response;
 		}
 
 
+		$this->debug('reply', sprintf(' got %dtweets as replies', count($response)));
 		// 受け取ったIDを記録
 		$this->cache_data['replied_max_id'] = $response[0]['id_str'];
 
 		$replies = $this->filter_tweets($response, false);
+		$this->debug('reply', sprintf(' target: %dtweet', count($replies)));
 
 		$result = array();
 		foreach($replies as $reply){
@@ -420,6 +442,7 @@ class TureBotter
 				$result[]= $this->make_success($response);
 			}
 		}
+		$this->debug('reply', 'Finish');
 		return $result;
 	}
 
@@ -430,6 +453,7 @@ class TureBotter
 	 * @return array 実際に投稿したもののAPIデータを配列で返す。
 	 */
 	public function replyTimeline($ignore=2, $replyPatternFile='reply_pattern.php'){
+		$this->debug('replyTL', '#replyTimeline');
 		if(preg_match('/\.php$/', $replyPatternFile) == 0){
 			$message = "replyPatternFile はPHPファイルでなければなりません: {$replyPatternFile}";
 			$this->log('E', 'replyTL', $message);
@@ -440,13 +464,17 @@ class TureBotter
 
 		$response = $this->twitter_get_timeline($from);
 		if(count($response)===0 || $this->is_error($response)){
+			$this->debug('replyTL', ' got nothing as timeline');
+			$this->debug('replyTL', 'Finish');
 			return $response;
 		}
+		$this->debug('replyTL', sprintf(' got %dtweets as timeline', count($response)));
 
 		// 受け取ったIDを記録
 		$this->cache_data['replied_timeline_max_id'] = $response[0]['id_str'];
 
 		$timeline = $this->filter_tweets($response, true);
+		$this->debug('replyTL', sprintf(' target: %dtweet', count($timeline)));
 
 		$result = array();
 		foreach($timeline as $tweet){
@@ -467,6 +495,7 @@ class TureBotter
 				$result[]= $this->make_success($response);
 			}
 		}
+		$this->debug('replyTL', 'Finish');
 		return $result;
 
 	}
@@ -555,6 +584,7 @@ class TureBotter
 	}
 
 	protected function twitter_verify_credentials(){
+		$this->debug('api', 'Fetching account information...');
 		return $this->twitter_api('GET', 'account/verify_credentials', array('skip_status'=>1));
 	}
 

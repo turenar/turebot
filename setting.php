@@ -17,3 +17,6 @@ $cfg['footer'] = "";
 // noneを指定した場合排他処理を行いません。
 //   [値: (flock|file|none)]
 $cfg['locktype'] = 'flock';
+
+// デバッグメッセージの表示
+$cfg['debug_logging'] = false;
