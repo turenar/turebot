@@ -333,24 +333,42 @@ class TureBotter
 		foreach($pattern_data as $pattern => $res){
 			if(count($res)!=0){
 				if(preg_match('@'.$pattern.'@u', $text, $matches) === 1){
-					$status = $res[array_rand($res)];
+					$text = $res[array_rand($res)];
 					for($i=count($matches)-1; $i>=1; $i--){
-						$status = str_replace('$'.$i, $matches[$i], $status);
+						$text = str_replace('$'.$i, $matches[$i], $text);
 					}
 					break;
 				}
 			}
 		}
 		// パターンになかった場合
-		if(empty($status) && !empty($reply_file)){
-			$status = $this->get_next_tweet($reply_file);
+		if(empty($text) && !empty($reply_file)){
+			$text = $this->get_next_tweet($reply_file);
 		}
-		if(empty($status) || $status == '[[END]]'){
+		if(empty($text) || $text == '[[END]]'){
 			return NULL;
 		}
 		$screen_name = $reply['user']['screen_name'];
-		$status = '@' . $screen_name . ' ' . $status;
-		$status = $this->make_tweet($status, array('in_reply_to'=>$reply));
+
+		if(strpos($text, "[[AUTOFOLLOW]]") !== false){
+			$this->log('I', 'follow', " detected [[AUTOFOLLOW]]: (to $screen_name) $text");
+			$text = str_replace('[[AUTOFOLLOW]]', '', $text);
+
+			$follow_req = $this->twitter_follow_user($reply['user']['id_str']);
+			if($this->is_error($follow_req)){
+				$this->log('W', 'follow', " Failed follow user: $screen_name");
+			}
+		}else if(strpos($text, "[[AUTOREMOVE]]") !== false){
+			$this->log('I', 'remove', " detected [[AUTOREMOVE]]: (to $screen_name) $text");
+			$text = str_replace('[[AUTOREMOVE]]', '', $text);
+
+			$follow_req = $this->twitter_remove_user($reply['user']['id_str']);
+			if($this->is_error($follow_req)){
+				$this->log('W', 'remove', " Failed remove user: $screen_name");
+			}
+		}
+		$text = sprintf('@%s %s', $screen_name, $text);
+		$status = $this->make_tweet($text, array('in_reply_to'=>$reply));
 		$in_reply_to = $reply['id_str'];
 
 		return array('status'=>$status, 'in_reply_to_status_id'=>$in_reply_to);
@@ -575,6 +593,16 @@ class TureBotter
 	protected function twitter_follow_user($id){
 		$parameters = array('user_id'=>$id);
 		return $this->twitter_api('POST', 'friendships/create', $parameters);
+	}
+
+	/**
+	 * ユーザーをリムーブする
+	 * @param string $id <b>ユーザー固有ID</b>の文字列型
+	 * @return array
+	 */
+	protected function twitter_remove_user($id){
+		$parameters = array('user_id'=>$id);
+		return $this->twitter_api('POST', 'friendships/destroy', $parameters);
 	}
 
 	/**
