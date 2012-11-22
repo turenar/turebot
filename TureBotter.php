@@ -399,9 +399,19 @@ class TureBotter
 		foreach($follow_list as $id){
 			$response = $this->twitter_follow_user($id);
 			if($this->is_error($response)){
-				$this->log('W', 'follow', "Failed following user (id=$id): {$response['error']['message']}");
+				$this->log('W', 'follow', " Failed following user (id=$id): {$response['error']['message']}");
 			}else{
-				$this->log('I', 'follow', "Followed user: {$response['screen_name']}");
+				$screen_name = $response['screen_name'];
+				$this->log('I', 'follow', " Followed user: $screen_name");
+				$status_text = $this->_get_cfg_value($this->config, 'text_when_autoFollow', NULL);
+				if($status_text){
+					$status_text = sprintf('@%s %s', $screen_name, $status_text);
+					$status_text = $this->make_tweet($status_text);
+					$status = $this->twitter_update_status(array('status'=>$status_text));
+					if($this->is_error($status)){
+						$this->log('W', 'follow', " Failed updating status: $status_text");
+					}
+				}
 			}
 			$results[] = $response;
 		}
@@ -581,7 +591,7 @@ class TureBotter
 	 * @param array $parameters パラメータ
 	 * @return array
 	 */
-	protected function twitter_update_status($parameters){
+	protected function twitter_update_status(array $parameters){
 		return $this->twitter_api('POST', 'statuses/update', $parameters);
 	}
 

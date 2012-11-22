@@ -8,6 +8,11 @@ $cfg['access_token_secret'] = "";
 // フッタの設定
 $cfg['footer'] = "";
 
+// #autoFollow() において自動フォローした時に送るリプライの内容。
+// NULLの場合は送らない。
+$cfg['text_when_autoFollow'] = 'フォローしたよ！';
+# $cfg['text_when_autoFollow'] = NULL;
+
 
 // ==== 高度な設定 ====
 
