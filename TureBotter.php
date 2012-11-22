@@ -132,6 +132,11 @@ class TureBotter
 		}
 	}
 
+	/**
+	 * デバッグ出力
+	 * @param string $category カテゴリ
+	 * @param string $text デバッグテキスト
+	 */
 	protected function debug($category, $text){
 		if($this->log_debug_enabled){
 			$this->log('D', $category, $text);
@@ -213,12 +218,24 @@ class TureBotter
 		return isset($arr['error']);
 	}
 
+	/**
+	 * エラー情報の作成
+	 * @param int $errid エラーID
+	 * @param string $message エラーメッセージ
+	 * @param mixed $extended 拡張オブジェクト
+	 * @return array エラーオブジェクト
+	 */
 	protected function make_error($errid, $message, $extended = NULL){
 		return array(
 				'result' => 'error',
 				'error'=>array('eid'=>$errid, 'message'=>$message, 'extended'=>$extended));
 	}
 
+	/**
+	 * エラー無しでの完了情報の作成
+	 * @param array $response レスポンス
+	 * @return array 成功情報
+	 */
 	protected function make_success(array $response){
 		return array(
 				'result' => 'success',
@@ -550,6 +567,11 @@ class TureBotter
 		return $this->twitter_api('POST', 'statuses/update', $parameters);
 	}
 
+	/**
+	 * ユーザーをフォローする
+	 * @param string $id <b>ユーザー固有ID</b>の文字列型
+	 * @return array
+	 */
 	protected function twitter_follow_user($id){
 		$parameters = array('user_id'=>$id);
 		return $this->twitter_api('POST', 'friendships/create', $parameters);
@@ -583,11 +605,19 @@ class TureBotter
 		return $this->twitter_api('GET', 'statuses/home_timeline', $parameters);
 	}
 
+	/**
+	 * アカウント情報の取得
+	 * @return array
+	 */
 	protected function twitter_verify_credentials(){
 		$this->debug('api', 'Fetching account information...');
 		return $this->twitter_api('GET', 'account/verify_credentials', array('skip_status'=>1));
 	}
 
+	/**
+	 * アカウント情報の取得。使用可能ならばキャッシュを返す
+	 * @return NULL|array
+	 */
 	public function get_user_information(){
 		$data = $this->_get_value($this->cache_data, 'logining_user');
 		$cfg = $this->config;
