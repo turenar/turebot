@@ -572,10 +572,10 @@ class TureBotter
 	protected function twitter_api($request_type, $endpoint, $value=array()){
 		$response = $this->consumer->sendRequest(TWITTER_API_BASE_URL.$endpoint.'.json', $value, $request_type)->getResponse();
 		$json = json_decode($response->getBody(), true);
-		if($response === NULL){
+		if($json === NULL){
 			$this->log('E', 'api', "twitter returned illegal json: $response");
 			return $this->make_error(
-					ERR_ID__ILLEGAL_JSON, $response->getStatus(), $response);
+					ERR_ID__ILLEGAL_JSON, $response->getStatus(), $response->getBody());
 		}else if($response->getStatus()>=300){
 			$this->log('E', 'api', "twitter (endpoint=$endpoint) returned {$response->getStatus()}: ".print_r($json, true));
 			return $this->make_error(
