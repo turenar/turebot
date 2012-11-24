@@ -1,74 +1,89 @@
 <?php
-//======================================================================
-//EasyBotter Ver2.04beta
-//updated 2010/02/28
-//======================================================================
+//============================================================
+//EasyBotter Ver2.1.1
+//updated 2012/11/2
+//============================================================
 class EasyBotter
-{    
+{
         private $_screen_name;
         private $_consumer_key;
         private $_consumer_secret;
         private $_access_token;
         private $_access_token_secret;
-        
         private $_replyLoopLimit;
         private $_footer;
         private $_dataSeparator;
-        
-        private $_tweetData;        
+        private $_tweetData;
         private $_replyPatternData;
-        
-        private $_repliedReplies;
         private $_logDataFile;
         private $_latestReply;
-        
+
     function __construct()
-    {                        
+    {
         $dir = getcwd();
         $path = $dir."/PEAR";
         set_include_path(get_include_path() . PATH_SEPARATOR . $path);
         $inc_path = get_include_path();
         chdir(dirname(__FILE__));
-        date_default_timezone_set("Asia/Tokyo");        
-        
+        date_default_timezone_set("Asia/Tokyo");
+
         require_once("setting.php");
         $this->_screen_name = $screen_name;
         $this->_consumer_key = $consumer_key;
         $this->_consumer_secret = $consumer_secret;
         $this->_access_token = $access_token;
         $this->_access_token_secret = $access_token_secret;
-        
         $this->_replyLoopLimit = $replyLoopLimit;
         $this->_footer  = $footer;
         $this->_dataSeparator = $dataSeparator;
-        
-        $this->_repliedReplies = array();
         $this->_logDataFile = "log.dat";
-        $this->_latestReply = file_get_contents($this->_logDataFile);
-        
-        require_once 'HTTP/OAuth/Consumer.php';  
-        $this->consumer = new HTTP_OAuth_Consumer($this->_consumer_key, $this->_consumer_secret);    
-        $http_request = new HTTP_Request2();  
-        $http_request->setConfig('ssl_verify_peer', false);  
-        $consumer_request = new HTTP_OAuth_Consumer_Request;  
-        $consumer_request->accept($http_request);  
-        $this->consumer->accept($consumer_request);  
-        $this->consumer->setToken($this->_access_token);  
-        $this->consumer->setTokenSecret($this->_access_token_secret);        
-        
+        $this->_log = json_decode(file_get_contents($this->_logDataFile),true);
+        $this->_latestReply = $this->_log["latest_reply"];
+        $this->_latestReplyTimeline = $this->_log["latest_reply_tl"];
+
+        require_once 'HTTP/OAuth/Consumer.php';
+        $this->consumer = new HTTP_OAuth_Consumer($this->_consumer_key, $this->_consumer_secret);
+        $http_request = new HTTP_Request2();
+        $http_request->setConfig('ssl_verify_peer', false);
+        $consumer_request = new HTTP_OAuth_Consumer_Request;
+        $consumer_request->accept($http_request);
+        $this->consumer->accept($consumer_request);
+        $this->consumer->setToken($this->_access_token);
+        $this->consumer->setTokenSecret($this->_access_token_secret);
         $this->printHeader();
     }
-       
-   function __destruct(){
-        $this->printFooter();        
+
+    function __destruct(){
+        $this->printFooter();
     }
-    
+
+    //つぶやきデータを読み込む
+    function readDataFile($file){
+        if(preg_match("@\.php$@", $file) == 1){
+            require_once($file);
+            return $data;
+        }else{
+            $tweets = trim(file_get_contents($file));
+            $tweets = preg_replace("@".$this->_dataSeparator."+@",$this->_dataSeparator,$tweets);
+            $data = explode($this->_dataSeparator, $tweets);
+            return $data;
+        }
+    }
+    //リプライパターンデータを読み込む
+    function readPatternFile($file){
+        $data = array();
+        require_once($file);
+        if(count($data) != 0){
+            return $data;
+        }else{
+            return $reply_pattern;
+        }
+    }
     //どこまでリプライしたかを覚えておく
-    function saveLog(){
-        rsort($this->_repliedReplies);
-        return file_put_contents($this->_logDataFile,$this->_repliedReplies[0]);
+    function saveLog($name, $data){
+        $this->_log[$name] = $data;
+        file_put_contents($this->_logDataFile,json_encode($this->_log));
     }
-        
     //表示用HTML
     function printHeader(){
         $header = '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">';
@@ -81,189 +96,224 @@ class EasyBotter
         $header .= '<body><pre>';
         print $header;
     }
-
     //表示用HTML
     function printFooter(){
         echo "</body></html>";
     }
-    
-    //ランダムにポスト
-    function postRandom($datafile = "data.txt"){        
-        $status = $this->makeTweet($datafile);                
+
+//============================================================
+//bot.phpから直接呼び出す、基本の５つの関数
+//============================================================
+
+    //ランダムにポストする
+    function postRandom($datafile = "data.txt"){
+        $status = $this->makeTweet($datafile);
         if(empty($status)){
             $message = "投稿するメッセージがないようです。<br />";
             echo $message;
             return array("error"=> $message);
-        }else{                
+        }else{
             //idなどの変換
-            if(preg_match("@{.+?}@",$status) == 1){
-                $status = $this->convertText($status);
-            }            
-            $response = $this->setUpdate(array("status"=>$status));
-            return $this->showResult($response);            
-        }    
-    }    
-    
-    //順番にポスト
-    function postRotation($datafile = "data.txt", $lastPhrase = FALSE){        
-        $status = $this->makeTweet($datafile,0);                
+            $status = $this->convertText($status);
+            //フッターを追加
+            $status .= $this->_footer;
+            return $this->showResult($this->setUpdate(array("status"=>$status)), $status);
+        }
+    }
+
+    //順番にポストする
+    function postRotation($datafile = "data.txt", $lastPhrase = FALSE){
+        $status = $this->makeTweet($datafile,0);
         if($status !== $lastPhrase){
-            $this->rotateData($datafile);        
+            $this->rotateData($datafile);
             if(empty($status)){
                 $message = "投稿するメッセージがないようです。<br />";
                 echo $message;
                 return array("error"=> $message);
-            }else{                
+            }else{
                 //idなどの変換
-                if(preg_match("@{.+?}@",$status) == 1){
-                    $status = $this->convertText($status);
-                }            
-                $response = $this->setUpdate(array("status"=>$status));
-                return $this->showResult($response);            
+                $status = $this->convertText($status);
+                //フッターを追加
+                $status .= $this->_footer;
+                return $this->showResult($this->setUpdate(array("status"=>$status)), $status);
             }
         }else{
             $message = "終了する予定のフレーズ「".$lastPhrase."」が来たので終了します。<br />";
             echo $message;
             return array("error"=> $message);
         }
-    }    
-    
+    }
+
     //リプライする
     function reply($cron = 2, $replyFile = "data.txt", $replyPatternFile = "reply_pattern.php"){
         $replyLoopLimit = $this->_replyLoopLimit;
         //リプライを取得
-        $response = $this->getReplies();        
+        $response = $this->getReplies($this->_latestReply);
         $response = $this->getRecentTweets($response, $cron * $replyLoopLimit * 3);
         $replies = $this->getRecentTweets($response, $cron);
         $replies = $this->selectTweets($replies);
-        $replies = $this->removeRepliedTweets($replies);
-        
-        if(count($replies) != 0){                           
+        if(count($replies) != 0){
             //ループチェック
             $replyUsers = array();
             foreach($response as $r){
-                $replyUsers[] = (string)$r->user->screen_name;                
+                $replyUsers[] = $r["user"]["screen_name"];
             }
             $countReplyUsers = array_count_values($replyUsers);
-            $replies_ = array();
-            foreach($replies as $r){
-                $userName = (string)$r->user->screen_name;
+            $replies2 = array();
+            foreach($replies as $rep){
+                $userName = $rep["user"]["screen_name"];
                 if($countReplyUsers[$userName] < $replyLoopLimit){
-                    $replies_[] = $r;
+                    $replies2[] = $rep;
                 }
-            }            
+            }
             //古い順にする
-            $replies = array_reverse($replies_);                                
-            if(count($replies) != 0){            
+            $replies2 = array_reverse($replies2);
+            if(count($replies2) != 0){
                 //リプライの文章をつくる
-                $replyTweets = $this->makeReplyTweets($replies, $replyFile, $replyPatternFile);                
-                foreach($replyTweets as $re){
-                    $value = array("status"=>$re["status"],'in_reply_to_status_id'=>$re["in_reply_to_status_id"]);    
-                    $response = $this->setUpdate($value);      
-                    $result = $this->showResult($response);
-                    $results[] = $result;
-                    if($response->in_reply_to_status_id){
-                        $this->_repliedReplies[] = (string)$response->in_reply_to_status_id;
+                $replyTweets = $this->makeReplyTweets($replies2, $replyFile, $replyPatternFile);
+                $repliedReplies = array();
+                foreach($replyTweets as $rep){
+                    $response = $this->setUpdate(array("status"=>$rep["status"],'in_reply_to_status_id'=>$rep["in_reply_to_status_id"]));
+                    $results[] = $this->showResult($response, $rep["status"]);
+                    if($response["in_reply_to_status_id_str"]){
+                        $repliedReplies[] = $response["in_reply_to_status_id_str"];
                     }
                 }
-            }        
+            }
         }else{
-            $message = $cron."分以内に受け取った@はないようです。<br /><br />";
+            $message = $cron."分以内に受け取った未返答のリプライはないようです。<br /><br />";
             echo $message;
             $results[] = $message;
         }
-        if(!empty($this->_repliedReplies)){
-            $this->saveLog();
+
+        //ログに記録
+        if(!empty($repliedReplies)){
+            rsort($repliedReplies);
+            $this->saveLog("latest_reply",$repliedReplies[0]);
         }
         return $results;
     }
-    
+
     //タイムラインに反応する
     function replyTimeline($cron = 2, $replyPatternFile = "reply_pattern.php"){
         //タイムラインを取得
-        $timeline = $this->getFriendsTimeline();        
-        $timeline = $this->getRecentTweets($timeline, $cron);   
-        $timeline = $this->selectTweets($timeline);
-        $timeline = $this->removeRepliedTweets($timeline);
-        $timeline = array_reverse($timeline);        
-        if(count($timeline) != 0){
-            //リプライを作る        
-            $replyTweets = $this->makeReplyTimelineTweets($timeline, $replyPatternFile);
+        $timeline = $this->getFriendsTimeline($this->_latestReplyTimeline,100);
+        $timeline2 = $this->getRecentTweets($timeline, $cron);
+        $timeline2 = $this->selectTweets($timeline2);
+        $timeline2 = array_reverse($timeline2);
+
+        if(count($timeline2) != 0){
+            //リプライを作る
+            $replyTweets = $this->makeReplyTimelineTweets($timeline2, $replyPatternFile);
             if(count($replyTweets) != 0){
-                foreach($replyTweets as $re){
-                    $value = array("status"=>$re["status"],'in_reply_to_status_id'=>$re["in_reply_to_status_id"]);    
-                    $response = $this->setUpdate($value);      
-                    $result = $this->showResult($response);
+                $repliedTimeline = array();
+                foreach($replyTweets as $rep){
+                    $response = $this->setUpdate(array("status"=>$rep["status"],'in_reply_to_status_id'=>$rep["in_reply_to_status_id"]));
+                    $result = $this->showResult($response, $rep["status"]);
                     $results[] = $result;
-                    if($response->in_reply_to_status_id){
-                        $this->_repliedReplies[] = (string)$response->in_reply_to_status_id;
-                    }                }
+                    if(!empty($response["in_reply_to_status_id_str"])){
+                        $repliedTimeline[] = $response["in_reply_to_status_id_str"];
+                    }
+                }
             }else{
-                $message = $cron."分以内のタイムラインに反応する単語がないようです。<br /><br />";
+                $message = $cron."分以内のタイムラインに未反応のキーワードはないみたいです。<br /><br />";
                 echo $message;
                 $results = $message;
             }
+        }else{
+            $message = $cron."分以内のタイムラインに未反応のキーワードはないみたいです。<br /><br />";
+            echo $message;
+            $results = $message;
         }
-        if(!empty($this->_repliedReplies)){
-            $this->saveLog();
+
+        //ログに記録
+        if(!empty($repliedTimeline[0])){
+            $this->saveLog("latest_reply_tl",$repliedTimeline[0]);
         }
-        return $results;        
+        return $results;
     }
-    
-    //発言を作る
-    function makeTweet($file, $number = FALSE){    
-        if(empty($this->_tweetData[$file])){
-            $this->_tweetData[$file] = $this->readDataFile($file);        
+
+    //自動フォロー返しする
+    function autoFollow(){
+        $followers = $this->getFollowers();
+        $friends = $this->getFriends();
+        $followlist = array_diff($followers["ids"], $friends["ids"]);
+        if($followlist){
+            foreach($followlist as $id){
+                $response = $this->followUser($id);
+                if(empty($response["errors"])){
+                    echo $response["name"]."(@<a href='https://twitter.com/".$response["screen_name"]."'>".$response["screen_name"]."</a>)をフォローしました<br /><br />";
+                }
+            }
         }
-        //発言をランダムに一つ選ぶ
+    }
+
+//============================================================
+//上の５つの関数から呼び出す関数
+//============================================================
+
+    //発言を作る
+    function makeTweet($file, $number = FALSE){
+        //txtファイルの中身を配列に格納
+        if(empty($this->_tweetData[$file])){
+            $this->_tweetData[$file] = $this->readDataFile($file);
+        }
+        //発言をランダムに一つ選ぶ場合
         if($number === FALSE){
             $status = $this->_tweetData[$file][array_rand($this->_tweetData[$file])];
         }else{
-            $status = $this->_tweetData[$file][$number];            
-        }       
+        //番号で指定された発言を選ぶ場合
+            $status = $this->_tweetData[$file][$number];
+        }
         return $status;
-    }    
+    }
+
     //リプライを作る
     function makeReplyTweets($replies, $replyFile, $replyPatternFile){
         if(empty($this->_replyPatternData[$replyPatternFile]) && !empty($replyPatternFile)){
             $this->_replyPatternData[$replyPatternFile] = $this->readPatternFile($replyPatternFile);
         }
         $replyTweets = array();
+
         foreach($replies as $reply){
             $status = "";
-            //リプライパターンと照合
+            //指定されたリプライパターンと照合
             if(!empty($this->_replyPatternData[$replyPatternFile])){
                 foreach($this->_replyPatternData[$replyPatternFile] as $pattern => $res){
-                    if(preg_match("@".$pattern."@u",$reply->text, $matches) === 1){                                        
+                    if(preg_match("@".$pattern."@u",$reply["text"], $matches) === 1){
                         $status = $res[array_rand($res)];
                         for($i=1;$i <count($matches);$i++){
-                            $p = "$".$i;
+                            $p = "$".$i;  //エスケープ？
                             $status = str_replace($p,$matches[$i],$status);
                         }
                         break;
                     }
-                }            
-            }                         
-            //パターンになかった場合はランダムに
+                }
+            }
+
+            //リプライパターンにあてはまらなかった場合はランダムに
             if(empty($status) && !empty($replyFile)){
                 $status = $this->makeTweet($replyFile);
-            }        
-            if(empty($status) || $status == "[[END]]"){
-                continue;
-            }            
-            if(preg_match("@{.+?}@",$status) == 1){
-                $status = $this->convertText($status, $reply);
             }
-            $reply_name = (string)$reply->user->screen_name;        
-            $in_reply_to_status_id = (string)$reply->id;
-            $re["status"] = "@".$reply_name." ".$status;
-            $re["in_reply_to_status_id"] = $in_reply_to_status_id;
-            
-            $replyTweets[] = $re;
-        }                        
-        return $replyTweets;    
+            if(empty($status) || stristr($status,"[[END]]")){
+                continue;
+            }
+            //idなどを変換
+            $status = $this->convertText($status, $reply);
+            //フッターを追加
+            $status .= $this->_footer;
+            //リプライ相手、リプライ元を付与
+            $re["status"] = "@".$reply["user"]["screen_name"]." ".$status;
+            $re["in_reply_to_status_id"] = $reply["id_str"];
+
+            //応急処置
+            if(!stristr($status,"[[END]]")){
+                $replyTweets[] = $re;
+            }
+        }
+        return $replyTweets;
     }
-    
+
     //タイムラインへの反応を作る
     function makeReplyTimelineTweets($timeline, $replyPatternFile){
         if(empty($this->_replyPatternData[$replyPatternFile])){
@@ -272,35 +322,37 @@ class EasyBotter
         $replyTweets = array();
         foreach($timeline as $tweet){
             $status = "";
-            $re = array();
-            $text = (string)$tweet->text;
             //リプライパターンと照合
             foreach($this->_replyPatternData[$replyPatternFile] as $pattern => $res){
-                if(preg_match("@".$pattern."@u",$text, $matches) === 1 && !preg_match("/\@/i",$text)){                                        
+                if(preg_match("@".$pattern."@u",$tweet["text"], $matches) === 1 && !preg_match("/\@/i",$tweet["text"])){
                     $status = $res[array_rand($res)];
                     for($i=1;$i <count($matches);$i++){
                         $p = "$".$i;
                         $status = str_replace($p,$matches[$i],$status);
                     }
                     break;
-                    
-                }                
+                }
             }
             if(empty($status)){
                 continue;
             }
-            if(preg_match("@{.+?}@",$status) == 1){
-                $status = $this->convertText($status, $tweet);
-            }            
-            $reply_name = (string)$tweet->user->screen_name;        
-            $in_reply_to_status_id = (string)$tweet->id;
-            $re["status"] = "@".$reply_name." ".$status;
-            $re["in_reply_to_status_id"] = $in_reply_to_status_id;               
-            $replyTweets[] = $re;
-        }                        
-        return $replyTweets;    
-    }        
-    
+            //idなどを変換
+            $status = $this->convertText($status, $tweet);
+            //フッターを追加
+            $status .= $this->_footer;
+
+            //リプライ相手、リプライ元を付与
+            $rep = array();
+            $rep["status"] = "@".$tweet["user"]["screen_name"]." ".$status;
+            $rep["in_reply_to_status_id"] = $tweet["id_str"];
+            //応急処置
+            if(!stristr($status,"[[END]]")){
+                $replyTweets[] = $rep;
+            }
+        }
+        return $replyTweets;
+    }
+
     //ログの順番を並び替える
     function rotateData($file){
         $tweetsData = file_get_contents($file);
@@ -314,113 +366,45 @@ class EasyBotter
         foreach($tweets_ as $t){
             $tweetsData_ .= $t."\n";
         }
-        $tweetsData_ = trim($tweetsData_);        
+        $tweetsData_ = trim($tweetsData_);
         $fp = fopen($file, 'w');
         fputs($fp, $tweetsData_);
-        fclose($fp);            
-    }
-    
-    //タイムラインの最近20件の呟きからランダムに一つを取得
-    function getRandomTweet(){
-        $response = $this->getFriendsTimeline();                
-        for($i=0;$i<99;$i++){ 
-            $randomTweet = $response->status[rand(0,count($response->status))];                        
-            if($randomTweet->user->screen_name != $this->_screen_name){
-                return $response->status[rand(0,count($response->status))];                
-            }
-        }
-        return false;
+        fclose($fp);
     }
 
     //つぶやきの中から$minute分以内のものと、最後にリプライしたもの以降のものだけを返す
-    function getRecentTweets($response,$minute){    
-        $tweets = array();
+    function getRecentTweets($tweets,$minute){
+        $tweets2 = array();
         $now = strtotime("now");
-        $limittime = $now - $minute * 70; //取りこぼしを防ぐために10秒多めにカウントしてる    
-        foreach($response as $tweet){
-            //var_dump($tweet);
-            $time = strtotime($tweet->created_at);    
-            //            echo $time." = ".$limittime."<Br />";
-            $tweet_id = (string)$tweet->id;
-            if($limittime <= $time && $this->_latestReply < $tweet_id){                    
-                $tweets[] = $tweet;                
+        $limittime = $now - $minute * 70; //取りこぼしを防ぐために10秒多めにカウントしてる
+        foreach($tweets as $tweet){
+            $time = strtotime($tweet["created_at"]);
+            if($limittime <= $time){
+                $tweets2[] = $tweet;
             }else{
-                break;                
+                break;
             }
-        }    
-        return $tweets;    
+        }
+        return $tweets2;
     }
-    
-    //必要なつぶやきのみに絞る
-    function selectTweets($response){    
-        $replies = array();
-        foreach($response as $reply){
+
+    //取得したつぶやきを条件で絞る
+    function selectTweets($tweets){
+        $tweets2 = array();
+        foreach($tweets as $tweet){
             //自分自身のつぶやきを除外する
-            $replyName = (string)$reply->user->screen_name;
-            if($this->_screen_name == $replyName){
+            if($this->_screen_name == $tweet["user"]["screen_name"]){
                 continue;
-            }                        
+            }
             //RT, QTを除外する
-            $text = (string)$reply->text;
-            if(strpos($text,"RT") != FALSE || strpos($text,"QT") != FALSE){
+            if(strpos($tweet["text"],"RT") != FALSE || strpos($tweet["text"],"QT") != FALSE){
                 continue;
-            }                        
-            $replies[] = $reply;                            
-        }    
-        return $replies;    
-    }
-    
-    //リプライ一覧から自分が既に返事したものを除く
-    function removeRepliedTweets($response){
-        $replies = array();
-        foreach($response as $reply){
-            $id = (string)$reply->id;
-            if(in_array($id, $this->_repliedReplies) === FALSE){
-                $replies[] = $reply;
             }
-        }    
-        return $replies;        
-    }
-                        
-    //自動フォロー返し
-    function autoFollow(){    
-        $response = $this->getFollowers();
-        $followList = array();
-        foreach($response as $user){
-            $follow = (string)$user->following;
-            if($follow == "false"){
-                $followList[] = (string)$user->screen_name;
-            }
+            $tweets2[] = $tweet;
         }
-        foreach($followList as $screen_name){    
-            $response = $this->followUser($screen_name);   
-        }            
+        return $tweets2;
     }
-    
-    //つぶやきデータを読み込む
-    function readDataFile($file){
-        if(preg_match("@\.php$@", $file) == 1){
-            require_once($file);
-            return $data;
-        }else{
-            $tweets = file_get_contents($file);
-            $tweets = trim($tweets);
-            $tweets = preg_replace("@".$this->_dataSeparator."+@",$this->_dataSeparator,$tweets);
-            $data = explode($this->_dataSeparator, $tweets);
-            return $data;
-        }
-    }    
-    //リプライパターンデータを読み込む
-    function readPatternFile($file){
-        $data = array();
-        require_once($file);
-        if(count($data) != 0){
-            return $data;
-        }else{
-            return $reply_pattern;            
-        }
-    }
-    
+
     //文章を変換する
     function convertText($text, $reply = FALSE){
         $text = str_replace("{year}",date("Y"),$text);
@@ -428,130 +412,157 @@ class EasyBotter
         $text = str_replace("{day}",date("j"),$text);
         $text = str_replace("{hour}",date("G"),$text);
         $text = str_replace("{minute}",date("i"),$text);
-        $text = str_replace("{second}",date("s"),$text);    
-        
-        //ランダムな一人のfollowingデータを取る    
-        if(strpos($text, "{following_id}") !== FALSE){
-            $response = $this->getFriends();
-            $id = $response->user[rand(0,count($response->user))]->screen_name;
-            $text = str_replace("{following_id}",$id,$text);        
-        }
-        if(strpos($text, "{following_name}") !== FALSE){
-            $response = $this->getFriends();
-            $name = $response->user[rand(0,count($response->user))]->name;
-            $text = str_replace("{following_name}",$name,$text);        
-        }
-        
-        //ランダムな一人のfollowerデータを取る    
-        if(strpos($text,"{follower_id}") !== FALSE){
-            $response = $this->getFollowers();
-            $id = $response->user[rand(0,count($response->user))]->screen_name;
-            $text = str_replace("{follower_id}",$id,$text);        
-        }
-        if(strpos($text, "{follower_name}") !== FALSE){
-            $response = $this->getFollowers();
-            $name = $response->user[rand(0,count($response->user))]->name;
-            $text = str_replace("{follower_name}",$name,$text);        
-        }
-        
+        $text = str_replace("{second}",date("s"),$text);
+
         //タイムラインからランダムに最近発言した人のデータを取る
         if(strpos($text,"{timeline_id}") !== FALSE){
             $randomTweet = $this->getRandomTweet();
-            $text = str_replace("{timeline_id}", $randomTweet->user->name,$text);        
+            $text = str_replace("{timeline_id}", $randomTweet["user"]["screen_name"],$text);
         }
         if(strpos($text, "{timeline_name}") !== FALSE){
             $randomTweet = $this->getRandomTweet();
-            $text = str_replace("{timeline_name}",$randomTweet->user->screen_name,$text);        
+            $text = str_replace("{timeline_name}",$randomTweet["user"]["name"],$text);
         }
-                
-        //使うファイルによって違うやつ
+
+        //使うファイルによって違うもの
         //リプライの場合は相手のid、そうでなければfollowしているidからランダム
         if(strpos($text,"{id}") !== FALSE){
             if(!empty($reply)){
-                $text = str_replace("{id}",$reply->user->screen_name,$text);                
+                $text = str_replace("{id}",$reply["user"]["screen_name"],$text);
             }else{
                 $randomTweet = $this->getRandomTweet();
-                $text = str_replace("{id}",$randomTweet->user->screen_name,$text);        
+                $text = str_replace("{id}",$randomTweet["user"]["screen_name"],$text);
             }
         }
         if(strpos($text,"{name}") !== FALSE){
             if(!empty($reply)){
-                $text = str_replace("{name}",$reply->user->name,$text);                
+                $text = str_replace("{name}",$reply["user"]["name"],$text);
             }else{
                 $randomTweet = $this->getRandomTweet();
-                $text = str_replace("{name}",$randomTweet->user->name,$text);        
+                $text = str_replace("{name}",$randomTweet["user"]["name"],$text);
             }
         }
+
+        //リプライをくれた相手のtweetを引用する
         if(strpos($text,"{tweet}") !== FALSE && !empty($reply)){
-            $tweet = preg_replace("@\.?\@[a-zA-Z0-9-_]+\s@u","",$reply->status);            
-            $text = str_replace("{tweet}",$tweet,$text);                                   
-        }            
-        //フッターを追加
-        $text .= $this->_footer;
+            $tweet = preg_replace("@\.?\@[a-zA-Z0-9-_]+\s@u","",$reply["text"]); //@リプライを消す
+            $text = str_replace("{tweet}",$tweet,$text);
+        }
+
         return $text;
-    }    
-    
+    }
+
+    //タイムラインの最近30件の呟きからランダムに一つを取得
+    function getRandomTweet($num = 30){
+        $response = $this->getFriendsTimeline(NULL, $num);
+        if($response["errors"]){
+            echo $response["errors"][0]["message"];
+        }else{
+            for($i=0; $i < $num;$i++){
+                $randomTweet = $response[array_rand($response)];
+                if($randomTweet["user"]["screen_name"] != $this->_screen_name){
+                    return $randomTweet;
+                }
+            }
+        }
+        return false;
+    }
+
     //結果を表示する
-    function showResult($response){
-        if(!$response->error){
+    function showResult($response, $status = NULL){
+        if(empty($response["errors"])){
             $message = "Twitterへの投稿に成功しました。<br />";
-            $message .= "@<a href='http://twitter.com/".$response->user->screen_name."' target='_blank'>".$response->user->screen_name."</a>";
-            $message .= "に投稿したメッセージ：".$response->text;
-            $message .= " <a href='http://twitter.com/".$response->user->screen_name."/status/".$response->id."' target='_blank'>http://twitter.com/".$response->user->screen_name."/status/".$response->id."</a><br /><br />";
+            $message .= "@<a href='http://twitter.com/".$response["user"]["screen_name"]."' target='_blank'>".$response["user"]["screen_name"]."</a>";
+            $message .= "に投稿したメッセージ：".$response["text"];
+            $message .= " <a href='http://twitter.com/".$response["user"]["screen_name"]."/status/".$response["id_str"]."' target='_blank'>http://twitter.com/".$response["user"]["screen_name"]."/status/".$response["id_str"]."</a><br /><br />";
             echo $message;
-            //var_dump($response);
             return array("result"=> $message);
         }else{
-            $message = "Twitterへの投稿に失敗しました。<br />";
-            $message .= "ユーザー名：@<a href='http://twitter.com/".$this->_screen_name."' target='_blank'>".$this->_screen_name."</a><br /><br />";
+            $message = "「".$status."」を投稿しようとしましたが失敗しました。<br />";
             echo $message;
-            var_dump($response);
+            echo $response["errors"][0]["message"];
+            echo "<br /><br />";
             return array("error" => $message);
         }
     }
-    
-    //基本的なAPIを叩く
-    function _setData($url, $value = array()){                
-        $response = $this->consumer->sendRequest($url, $value, "POST");  
-        $response = simplexml_load_string($response->getBody());                
-        return $response;
-    }    
-    function _getData($url){                
-        $response = $this->consumer->sendRequest($url,array(),"GET");  
-        $response = simplexml_load_string($response->getBody());                
-        return $response;
-    }    
-    function setUpdate($value){        
-        $url = "https://twitter.com/statuses/update.xml";
-        return $this->_setData($url,$value);
-    }            
-    function getFriendsTimeline(){
-        $url = "http://twitter.com/statuses/friends_timeline.xml";
-        return $this->_getData($url);                
+
+
+//============================================================
+//基本的なAPIを叩くための関数
+//============================================================
+    function _setData($url, $value = array()){
+        return json_decode($this->consumer->sendRequest($url, $value, "POST")->getBody(), true);
     }
-    function getReplies($page = false)
-    {
-        $url = "http://twitter.com/statuses/replies.xml";        
-        if ($page) {
-            $url .= '?page=' . intval($page);
+
+    function _getData($url){
+        return json_decode($this->consumer->sendRequest($url, array(), "GET")->getBody(), true);
+    }
+
+    function setUpdate($value){
+        $url = "http://api.twitter.com/1.1/statuses/update.json";
+        return $this->_setData($url,$value);
+    }
+
+    function getReplies($since_id = NULL){
+        $url = "http://api.twitter.com/1.1/statuses/mentions_timeline.json?";
+        if ($since_id) {
+            $url .= 'since_id=' . $since_id ."&";
         }
-        return $this->_getData($url);
-    }        
+        $url .= "count=100";
+        $response = $this->_getData($url);
+        if($response["errors"]){
+            echo $response["errors"][0]["message"];
+        }
+        return $response;
+    }
+
+    function getFriendsTimeline($since_id = 0, $num = 100){
+        $url = "https://api.twitter.com/1.1/statuses/home_timeline.json?";
+        if ($since_id) {
+            $url .= 'since_id=' . $since_id ."&";
+        }
+        $url .= "count=" .$num ;
+        $response = $this->_getData($url);
+        if($response["errors"]){
+            echo $response["errors"][0]["message"];
+        }
+        return $response;
+    }
+
+    function followUser($id)
+    {
+        $url = "https://api.twitter.com/1.1/friendships/create.json";
+        $value = array("user_id"=>$id, "follow"=>"true");
+        return $this->_setData($url,$value);
+    }
+
     function getFriends($id = null)
     {
-        $url = "http://twitter.com/statuses/friends.xml";        
-        return $this->_getData($url);
-    }    
+        $url = "https://api.twitter.com/1.1/friends/ids.json";
+        $response = $this->_getData($url);
+        if($response["errors"]){
+            echo $response["errors"][0]["message"];
+        }
+        return $response;
+    }
+
     function getFollowers()
     {
-        $url = "http://twitter.com/statuses/followers.xml";        
-        return $this->_getData($url);
-    }    
-    function followUser($screen_name)
-    {    
-        $url = "http://twitter.com/friendships/create/".$screen_name.".xml";    
-        return $this->_setData($url);
+        $url = "https://api.twitter.com/1.1/followers/ids.json";
+        $response = $this->_getData($url);
+        if($response["errors"]){
+            echo $response["errors"][0]["message"];
+        }
+        return $response;
     }
-}    
-?>    
-    
+
+    function checkApi($resources = "statuses"){
+        $url = "https://api.twitter.com/1.1/application/rate_limit_status.json";
+        if ($resources) {
+            $url .= '?resources=' . $resources;
+        }
+        $response = $this->_getData($url);
+        var_dump($response);
+    }
+}
+?>

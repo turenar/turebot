@@ -26,6 +26,10 @@ require_once 'HTTP/OAuth/Provider/Exception/InvalidRequest.php';
 /**
  * HTTP_OAuth_Provider_Request
  *
+ * NOTE:
+ * Currently, it's up to the developer to implement the provider side of
+ * timestamp and nonce checking.
+ *
  * @category  HTTP
  * @package   HTTP_OAuth
  * @author    Jeff Hodsdon <jeffhodsdon@gmail.com>
@@ -105,12 +109,15 @@ class HTTP_OAuth_Provider_Request extends HTTP_OAuth_Message
     protected function apacheRequestHeaders()
     {
         if (function_exists('apache_request_headers')) {
+            // @codeCoverageIgnoreStart
             return apache_request_headers();
+            // @codeCoverageIgnoreEnd
         }
 
         return null;
     }
 
+    // @codeCoverageIgnoreStart
     /**
      * Pecl HTTP request headers
      *
@@ -129,6 +136,7 @@ class HTTP_OAuth_Provider_Request extends HTTP_OAuth_Message
 
         return null;
     }
+    // @codeCoverageIgnoreEnd
 
     /**
      * Set parameters from the incoming request 
@@ -166,12 +174,16 @@ class HTTP_OAuth_Provider_Request extends HTTP_OAuth_Message
                     'content type for POST request');
             }
 
-            $params = array_merge($params,
-                $this->parseQueryString($this->getPostData()));
+            $params = array_merge(
+                $params,
+                $this->parseQueryString($this->getPostData())
+            );
         }
 
-        $params = array_merge($params,
-            $this->parseQueryString($this->getQueryString()));
+        $params = array_merge(
+            $params,
+            $this->parseQueryString($this->getQueryString())
+        );
 
         if (empty($params)) {
             throw new HTTP_OAuth_Provider_Exception_InvalidRequest('No oauth ' .
@@ -309,6 +321,7 @@ class HTTP_OAuth_Provider_Request extends HTTP_OAuth_Message
         return $this->headers;
     }
 
+    // @codeCoverageIgnoreStart
     /**
      * Gets POST data
      *
@@ -318,6 +331,7 @@ class HTTP_OAuth_Provider_Request extends HTTP_OAuth_Message
     {
         return file_get_contents('php://input');
     }
+    // @codeCoverageIgnoreEnd
 
     /**
      * Parses a query string

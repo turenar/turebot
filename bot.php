@@ -6,22 +6,21 @@ require_once("EasyBotter.php");
 $eb = new EasyBotter();
 
 //=============================
-//botの動作をここに書いてください
-//先頭に//がある行はコメント扱いなので実行しません。実行したい行の頭の//を削除してください。
+//botの動作をこの下に記述していきます。
+//PHPでは先頭に//がある行はコメント扱いなので実行しません。実行したい行の先頭の//を削除してください。
 //=============================
 //$response = $eb->autoFollow();
 //$response = $eb->postRandom("data.txt"); 
-//$response = $eb->postRotation("data.txt");
+//$response = $eb->postRotation("data.txt","おわり");
 //$response = $eb->reply(2,"data.txt","reply_pattern.php");
 //$response = $eb->replyTimeline(2,"reply_pattern.php");
 
 
-
 /*
 //===================================================
-//EasyBotter2.03 2010/02/11更新
+//EasyBotter 簡易マニュアル
 //===================================================
-////ここから下はphaによる解説です。
+////ここから下は作者による解説です。
 ////cronなどでこのbot.phpを実行するわけですが、動作の指定の仕方はこんな感じです。
 
 //用意したデータをランダムにポストしたい
@@ -67,7 +66,7 @@ if(date("G") < 12){
 }
 
 //bot.phpを実行したときに、2月14日のみvalentine.txtのデータを、それ以外はdata.txtのデータを使う
-if(date("n") == 2 && datew("j") == 14){
+if(date("n") == 2 && date("j") == 14){
     $response = $eb->postRandom("valentine.txt");
 }else{
     $response = $eb->postRandom("data.txt");    
@@ -76,6 +75,3 @@ if(date("n") == 2 && datew("j") == 14){
 //準備したテキストを順番にポストしていって、準備した中から「めでたしめでたし」が投稿されたらbotの投稿をそこで止める
 $response = $eb->postRotation("data.txt","めでたしめでたし");    
 */
-
-
-?>

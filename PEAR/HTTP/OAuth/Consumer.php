@@ -156,8 +156,7 @@ class HTTP_OAuth_Consumer extends HTTP_OAuth
      */
     public function getRequestToken($url, $callback = 'oob',
         array $additional = array(), $method = 'POST'
-    )
-    {
+    ) {
         $this->debug('Getting request token from ' . $url);
         $additional['oauth_callback'] = $callback;
 
@@ -188,14 +187,15 @@ class HTTP_OAuth_Consumer extends HTTP_OAuth
      */
     public function getAccessToken($url, $verifier = '',
         array $additional = array(), $method = 'POST'
-    )
-    {
+    ) {
         if ($this->getToken() === null || $this->getTokenSecret() === null) {
             throw new HTTP_OAuth_Exception('No token or token_secret');
         }
 
         $this->debug('Getting access token from ' . $url);
-        $additional['oauth_verifier'] = $verifier;
+        if ($verifier !== null) {
+            $additional['oauth_verifier'] = $verifier;
+        }
 
         $this->debug('verifier: ' . $verifier);
         $response = $this->sendRequest($url, $additional, $method);
