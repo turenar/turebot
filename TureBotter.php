@@ -71,7 +71,7 @@ class TureBotter
 
 		$cache_file = "{$config_file}.cache";
 		if(file_exists($cache_file)){
-			$cache_data = unserialize(file_get_contents($cache_file));
+			$cache_data = json_decode(file_get_contents($cache_file), true);
 		} else {
 			$cache_data = array();
 		}
@@ -97,7 +97,7 @@ class TureBotter
 	}
 
 	function __destruct(){
-		file_put_contents($this->cache_file, serialize($this->cache_data));
+		file_put_contents($this->cache_file, json_encode($this->cache_data));
 		if($this->lock_pointer === NULL){
 			flock($this->log_pointer, LOCK_UN);
 		}
