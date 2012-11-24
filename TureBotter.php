@@ -4,6 +4,7 @@ define("ERR_ID__FAILED_API", 2);
 define("ERR_ID__ILLEGAL_FILE", 3);
 define("ERR_ID__ILLEGAL_JSON", 4);
 define("TWITTER_API_BASE_URL","https://api.twitter.com/1.1/");
+define('_TUREBOT__FOLLOW_TWEET_VFN', '__follow.virtual');
 
 
 /**
@@ -396,6 +397,11 @@ class TureBotter
 
 		$follow_list = array_diff($followers, $following);
 		$results = array();
+
+		if(count($follow_list) !== 0){
+			$status_texts = $this->_get_cfg_value($this->config, 'text_when_autoFollow', array());
+			$this->tweet_data[_TUREBOT__FOLLOW_TWEET_VFN] = (array) $status_texts;
+		}
 		foreach($follow_list as $id){
 			$response = $this->twitter_follow_user($id);
 			if($this->is_error($response)){
@@ -403,7 +409,7 @@ class TureBotter
 			}else{
 				$screen_name = $response['screen_name'];
 				$this->log('I', 'follow', " Followed user: $screen_name");
-				$status_text = $this->_get_cfg_value($this->config, 'text_when_autoFollow', NULL);
+				$status_text = $this->get_next_tweet(_TUREBOT__FOLLOW_TWEET_VFN);
 				if($status_text){
 					$status_text = sprintf('@%s %s', $screen_name, $status_text);
 					$status_text = $this->make_tweet($status_text);
