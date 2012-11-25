@@ -368,11 +368,19 @@ class TureBotter
 				$this->log('W', 'remove', " Failed remove user: $screen_name");
 			}
 		}
-		$text = sprintf('@%s %s', $screen_name, $text);
-		$status = $this->make_tweet($text, array('in_reply_to'=>$reply));
-		$in_reply_to = $reply['id_str'];
+		$text = $this->make_tweet($text, array('in_reply_to'=>$reply));
 
-		return array('status'=>$status, 'in_reply_to_status_id'=>$in_reply_to);
+		$status = array();
+		if(strpos($text, '[[TLRT]]') !== FALSE){
+			$text = str_replace('[[TLRT]]', '', $text);
+			$text = sprintf('%s RT @%s: %s', $text, $screen_name, $reply['text']);
+			$text = mb_substr($text, 0, 140, 'UTF-8');
+		}else{
+			$text = sprintf('@%s %s', $screen_name, $text);
+			$status['in_reply_to_status_id'] = $reply['id_str'];
+		}
+		$status['status'] = $text;
+		return $status;
 	}
 
 	/**
@@ -480,10 +488,7 @@ class TureBotter
 			if($replyTweet===NULL){
 				continue;
 			}
-			$parameter = array(
-					'status' => $replyTweet['status'],
-					'in_reply_to_status_id' => $replyTweet['in_reply_to_status_id']);
-			$response = $this->twitter_update_status($parameter);
+			$response = $this->twitter_update_status($replyTweet);
 			if($this->is_error($response)){
 				$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
 				$this->log('E', 'post', $message);
@@ -533,10 +538,7 @@ class TureBotter
 			if($replyTweet===NULL){
 				continue;
 			}
-			$parameter = array(
-					'status' => $replyTweet['status'],
-					'in_reply_to_status_id' => $replyTweet['in_reply_to_status_id']);
-			$response = $this->twitter_update_status($parameter);
+			$response = $this->twitter_update_status($replyTweet);
 			if($this->is_error($response)){
 				$message = "Twitterへの投稿に失敗: {$response['error']['message']}";
 				$this->log('E', 'post', $message);
