@@ -330,10 +330,10 @@ class TureBotter
 	protected function make_reply_tweet(array $reply, $reply_file, $reply_pattern_file){
 		$this->load_tweet($reply_pattern_file);
 		$pattern_data = $this->tweet_data[$reply_pattern_file];
-		$text = $reply['text'];
+		$replied_text = html_entity_decode($reply['text'], ENT_COMPAT | ENT_HTML401, 'UTF-8');
 		foreach($pattern_data as $pattern => $res){
 			if(count($res)!=0){
-				if(preg_match('@'.$pattern.'@u', $text, $matches) === 1){
+				if(preg_match('@'.$pattern.'@u', $replied_text, $matches) === 1){
 					$text = $res[array_rand($res)];
 					for($i=count($matches)-1; $i>=1; $i--){
 						$text = str_replace('$'.$i, $matches[$i], $text);
@@ -373,7 +373,7 @@ class TureBotter
 		$status = array();
 		if(strpos($text, '[[TLRT]]') !== FALSE){
 			$text = str_replace('[[TLRT]]', '', $text);
-			$text = sprintf('%s RT @%s: %s', $text, $screen_name, $reply['text']);
+			$text = sprintf('%s RT @%s: %s', $text, $screen_name, $replied_text);
 			$text = mb_substr($text, 0, 140, 'UTF-8');
 		}else{
 			$text = sprintf('@%s %s', $screen_name, $text);
