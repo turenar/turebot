@@ -201,15 +201,32 @@ class TureBotter
 	 * @param string $file ツイートファイル名
 	 * @return NULL|string ツイート文字列
 	 */
-	protected function get_next_tweet($file){
+	protected function get_next_tweet($file, array &$reject_tweets=array()){
 		$this->load_tweet($file);
 		$tweet_data = $this->tweet_data[$file];
 
-		if(count($tweet_data)==0){
+		$data_count = count($tweet_data);
+		if($data_count == 0){
 			return null;
-		}else{
-			return $tweet_data[array_rand($tweet_data)];
 		}
+		// 一番最初にarray_diffしないのは処理が重いと怖いので(ただし要検証)
+		if($data_count <= count($reject_tweets)){
+			// できるだけ重複しないようにテキストを選ぶ
+			$tweet_data = array_diff($tweet_data, $reject_tweets);
+			if(count($tweet_data) == 0){
+				// 選べるツイートがない時はduplicateエラーが返されなさそうな
+				// テキストを選ぶことにする
+				$text = array_shift($reject_tweets);
+				$reject_tweets[] = $text;
+				return $text;
+			}
+		}
+
+		do{
+			$text = $tweet_data[array_rand($tweet_data)];
+		} while(in_array($text, $reject_tweets) !== false);
+		$reject_tweets[] = $text;
+		return $text;
 	}
 
 	/**
@@ -442,7 +459,13 @@ class TureBotter
 	 */
 	public function postRandom($datafile = "data.txt"){
 		$this->debug('post', '#postRandom');
-		$status_text = $this->get_next_tweet($datafile);
+		$tweeted = $this->_get_value($this->cache_data, 'tweeted', array());
+		$status_text = $this->get_next_tweet($datafile, $tweeted);
+		if(count($tweeted) > 10){
+			$tweeted = array_slice($tweeted, -10, 10); //10個のみ保存
+		}
+		$this->cache_data['tweeted'] = $tweeted;
+
 		if($status_text === NULL || trim($status_text) === ""){
 			$message = "投稿するメッセージがありません";
 			$this->log('I', 'post', $message);
