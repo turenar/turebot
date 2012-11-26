@@ -45,6 +45,8 @@ class TureBotter
 		$_footer = $this->_get_cfg_value($cfg, 'footer');
 		$_flocktype = $this->_get_cfg_value($cfg, 'locktype', 'flock', array('flock','file','none'));
 		$_log_debug_enabled = $this->_get_cfg_value($cfg, 'debug_logging', false, array(true,false));
+		$lock_file = null;
+		$lockfp = null;
 
 		if($_flocktype == 'file'){
 			$lock_file = "{$config_file}.lock";
