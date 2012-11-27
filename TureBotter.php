@@ -778,4 +778,26 @@ class TureBotter
 		} while($cursor !== '0');
 		return $followings;
 	}
+
+	/**
+	 * 受信したダイレクトメッセージを取得する
+	 * @return array
+	 */
+	protected function twitter_direct_messages($since_id=NULL){
+		$parameters = array('skip_status'=>1);
+		if($since_id !== NULL){
+			$parameters['since_id'] = $since_id;
+		}
+		return $this->twitter_api('GET', 'direct_messages', $parameters);
+	}
+	/**
+	 * ダイレクトメッセージを送る
+	 * @param string $user_id ユーザー固有ID (id_str)
+	 * @param string $text テキスト
+	 * @return array
+	 */
+	protected function twitter_direct_message_send($user_id, $text){
+		$parameters = array('user_id'=>$user_id, 'text'=>$text);
+		return $this->twitter_api('POST', 'direct_messages/new', $paramaters);
+	}
 }
