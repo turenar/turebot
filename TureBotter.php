@@ -224,8 +224,9 @@ class TureBotter
 
 		do{
 			$text = $tweet_data[array_rand($tweet_data)];
-		} while(in_array($text, $reject_tweets) !== false);
-		$reject_tweets[] = $text;
+			$hash = md5($text);
+		} while(in_array($hash, $reject_tweets) !== false);
+		$reject_tweets[] = $hash;
 		return $text;
 	}
 
