@@ -273,6 +273,10 @@ class TureBotter
 	 * @return string 置き換え済みステータステキスト
 	 */
 	protected function make_tweet($text, array $info=array()){
+		if($this->_get_value($info, 'footer_disable', false) === false){
+			$text .= $this->footer;
+		}
+
 		if(preg_match('@{.+?}@', $text) == 1){
 			$text = str_replace('{year}', date('Y'), $text);
 			$text = str_replace('{month}', date('n'), $text);
@@ -300,9 +304,6 @@ class TureBotter
 			}
 		}
 
-		if($this->_get_value($info, 'footer_disable', false) === false){
-			$text .= $this->footer;
-		}
 		return $text;
 	}
 

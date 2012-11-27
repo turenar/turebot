@@ -5,7 +5,7 @@ $cfg['consumer_secret'] = "";
 $cfg['access_token'] = "";
 $cfg['access_token_secret'] = "";
 
-// フッタの設定
+// フッタの設定。フッタの中でも{hour}などは時刻などに置き換えられます。
 $cfg['footer'] = "";
 
 // #autoFollow() において自動フォローした時に送るリプライの内容。
