@@ -349,7 +349,7 @@ class TureBotter
 	protected function make_reply_tweet(array $reply, $reply_file, $reply_pattern_file){
 		$this->load_tweet($reply_pattern_file);
 		$pattern_data = $this->tweet_data[$reply_pattern_file];
-		$replied_text = html_entity_decode($reply['text'], ENT_COMPAT | ENT_HTML401, 'UTF-8');
+		$replied_text = html_entity_decode($reply['text'], ENT_COMPAT, 'UTF-8');
 		foreach($pattern_data as $pattern => $res){
 			if(count($res)!=0){
 				if(preg_match('@'.$pattern.'@u', $replied_text, $matches) === 1){
