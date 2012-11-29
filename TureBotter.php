@@ -19,12 +19,13 @@ class TureBotter
 	private	$cache_file;
 	protected	$cache_data;
 	protected	$footer;
-	protected	$log_pointer;
 	private	$lock_pointer;
 	private	$lock_file;
+	protected	$log_pointer;
 	private	$log_buffer;
 	protected	$log_debug_enabled;
 	protected	$config;
+	protected	$admin_id;
 
 	/**
 	 * インスタンスの作成
@@ -45,6 +46,7 @@ class TureBotter
 		$_footer = $this->_get_cfg_value($cfg, 'footer');
 		$_flocktype = $this->_get_cfg_value($cfg, 'locktype', 'flock', array('flock','file','none'));
 		$_log_debug_enabled = $this->_get_cfg_value($cfg, 'debug_logging', false, array(true,false));
+		$_admin_id = $this->_get_cfg_value($cfg, 'admin_id');
 		$lock_file = null;
 		$lockfp = null;
 
@@ -89,6 +91,7 @@ class TureBotter
 		$this->log_buffer = array();
 		$this->log_debug_enabled = $_log_debug_enabled;
 		$this->config = $cfg;
+		$this->admin_id = $_admin_id;
 
 		$user_info = $this->get_user_information();
 		if($user_info === NULL){
@@ -404,6 +407,17 @@ class TureBotter
 		return $status;
 	}
 
+	protected function parse_command($name, $args){
+		switch ($name) {
+			case 'post':
+				$this->post($args);
+				break;
+			default:
+				return false;
+		}
+		return true;
+	}
+
 	/**
 	 * 自動フォロー返しをする
 	 * @return array
@@ -577,7 +591,6 @@ class TureBotter
 		}
 		$this->debug('replyTL', 'Finish');
 		return $result;
-
 	}
 
 	/**
@@ -595,6 +608,36 @@ class TureBotter
 			$this->log('I', 'post', "updated status: $status");
 			return $this->make_success($response);
 		}
+	}
+
+	public function handleDM(){
+		$this->debug('dm', '#handleDM');
+
+		$from = $this->_get_value($this->cache_data, 'handled_dm_max_id');
+
+		$response = $this->twitter_direct_messages($from);
+		if(count($response)===0 || $this->is_error($response)){
+			$this->debug('dm', ' got nothing as dm');
+			$this->debug('dm', 'Finish');
+			return $response;
+		}
+		$this->debug('dm', sprintf(' got %dmessages as dm', count($response)));
+
+		// 受け取ったIDを記録
+		$this->cache_data['handled_dm_max_id'] = $response[0]['id_str'];
+
+		$result = array();
+		foreach($response as $dm){
+			if($dm['sender_screen_name'] === $this->admin_id){
+				$text = trim(html_entity_decode($dm['text'], ENT_COMPAT, 'UTF-8'));
+				$arr = explode(' ', $text, 2);
+				$command_name = $arr[0];
+				$args = isset($arr[1]) ? $arr[1] : NULL;
+				$result[] = array($text, $this->parse_command($command_name, $args));
+			}
+		}
+		$this->debug('dm', 'Finish');
+		return $result;
 	}
 
 	/**

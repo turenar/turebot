@@ -13,6 +13,8 @@ $cfg['footer'] = "";
 $cfg['text_when_autoFollow'] = array('フォローしたよ！');
 # $cfg['text_when_autoFollow'] = NULL;
 
+// 管理者のID。ダイレクトメッセージを使用した遠隔操作用。
+$cfg['admin_id'] = '';
 
 // ==== 高度な設定 ====
 
