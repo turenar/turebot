@@ -192,7 +192,22 @@ class TureBotter
 			require_once($file);
 			$this->tweet_data[$file] = $data;
 		}else{
-			$this->tweet_data[$file] = file($file, FILE_IGNORE_NEW_LINES|FILE_SKIP_EMPTY_LINES);
+			$data = array();
+			$fp = fopen($file, 'r');
+			if($fp === false){
+				$this->log('W', 'core', "Could not read file: $file.");
+			}else{
+				while(($line=fgets($fp)) !== false){
+					$line = trim($line);
+					// 空行、または#から始まるときは無視する
+					if(strlen($line) === 0 || strpos($line, '#') === 0){
+						continue;
+					}
+					$data[] = $line;
+				}
+			}
+			fclose($fp);
+			$this->tweet_data[$file] = $data;
 		}
 	}
 
