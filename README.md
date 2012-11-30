@@ -1,7 +1,7 @@
 turebot
 =======
 
-Forked from [EasyBotter][] v2.05.
+[EasyBotter][] v2.05 が基になってますが、一から作り直されているはずです。
 
 EasyBotterと互換性はほとんどありません。下の互換性の項をご覧ください。
 
@@ -13,7 +13,7 @@ EasyBotterとできるだけ動作が同じになるようにしてはいるも�
 Requirements
 ------------
 
-* PHP&gt;=5.0 (json enabled) / **Propose: &gt;=5.2**
+* PHP &gt;=5.2
 
 
 EasyBotterとの互換性
@@ -54,4 +54,4 @@ EasyBotterをextendsして機能を追加するような拡張プログラムは
 利用法
 ------
 
-bot.phpを参照 (EasyBotter由来のコードたち)。
+bot.phpを参照

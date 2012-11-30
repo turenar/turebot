@@ -1,78 +1,78 @@
 <?php
 require_once("TureBotter.php");
-$eb = new TureBotter();
+$tb = new TureBotter();
 
-//=============================
-//botの動作をここに書いてください
-//先頭に//がある行はコメント扱いなので実行しません。実行したい行の頭の//を削除してください。
-//=============================
-//$response = $eb->autoFollow();
-//$response = $eb->post("あいうえお");
-//$response = $eb->postRandom("data.txt");
-//$response = $eb->reply(2,"data.txt","reply_pattern.php");
-//$response = $eb->replyTimeline(2,"reply_pattern.php");
-
+// =============================
+// botの動作をここに書いてください
+// 先頭に//または#がある行はコメント扱いになり実行されません。
+// 実行したい行の頭の//を削除してください。
+// =============================
+//$tb->autoFollow();
+//$tb->post("あいうえお");
+//$tb->postRandom("data.txt");
+//$tb->reply(2,"data.txt","reply_pattern.php");
+//$tb->replyTimeline(2,"reply_pattern.php");
 
 
 /*
-//===================================================
-//EasyBotter2.03 2010/02/11更新
-//===================================================
-////ここから下はphaによる解説です。
-////cronなどでこのbot.phpを実行するわけですが、動作の指定の仕方はこんな感じです。
+// ==============================
+// ここから下は解説になります。
+// cronなどでこのbot.phpを実行することになると思いますが、動作の指定の仕方はこんな感じです。
 
-//用意したデータをランダムにポストしたい
-$response = $eb->postRandom("データを書き込んだファイル名"); 
+// 用意したデータをランダムにポストしたい
+$tb->postRandom("データを書き込んだファイル名");
 
-//用意したデータを順番にポストしたい
-$response = $eb->postRotation("データを書き込んだファイル名"); 
+// @付きで話しかけられたときに反応を返したい
+$tb->reply(0, "データを書き込んだファイル名", "パターン反応を書き込んだファイル名 (PHPファイルじゃないと怒ります)");
+// 0はEasyBotterとの互換用で無視されます。
 
-//@で話しかけられたときにリプライしたい
-$response = $eb->reply(cronで実行する間隔（単位：分）, "データを書き込んだファイル名", "パターン反応を書き込んだファイル名"); 
+// タイムライン (@付きを除く) の単語に反応してリプライしたい
+$tb->replyTimeline(0, "パターン反応を書き込んだファイル名 (PHPファイルじゃないと怒ります");
+// 0はEasyBotterとの互換用で無視されます。
 
-//タイムラインの単語に反応してリプライしたい
-$response = $eb->replyTimeline(cronで実行する間隔（単位：分）,"パターン反応を書き込んだファイル名"); 
+// 自動でフォロー返ししたい
+$tb->autoFollow();
 
-//自動でフォロー返ししたい
-$response = $eb->autoFollow();
+// 固定文をツイートしたい
+$tb->post("ツイートの内容");
 
+// ==============================
+// 実行するたびに毎回実行するのではなく、
+// 実行する頻度を変えたい場合は以下のとおりです。
+// なお、PHPのdate()については以下のURLを参照ください。
+// http://php.net/manual/ja/function.date.php
+// ==============================
 
-//===================================================
-//// cronを実行するたびに毎回実行するのではなく、
-//// 実行する頻度を変えたい場合の例は以下のとおりです。
-//// PHPのdata()の応用の仕方は以下のURLを参照ください。
-//// http://php.net/manual/ja/function.date.php
+// bot.phpを実行したときに毎回実行する
+$tb->postRandom("data.txt");
 
-//bot.phpを実行したときに毎回実行される
-$response = $eb->postRandom("data.txt");
-
-//bot.phpを実行したときに、5回に1回ランダムに実行される
-if(rand(0,4) == 0){
-    $response = $eb->postRandom("data.txt");
+// bot.phpを実行したときに、5回に1回ランダムに実行する
+if(rand(0, 4) == 0){
+	$tb->postRandom("data.txt");
 }
 
-//bot.phpを実行したときに、0分、15分、30分、45分だったら実行される
+// bot.phpを実行したときに、0分、15分、30分、45分だったら実行される
 if(date("i") % 15 == 0){
-    $response = $eb->postRandom("data.txt");
+	$tb->postRandom("data.txt");
 }
 
-//bot.phpを実行したときに、午前だったらgozen.txtのデータを、午後だったらgogo.txtのデータを使う
+// bot.phpを実行したときに、午前だったらgozen.txtのデータを、午後だったらgogo.txtのデータを使う
 if(date("G") < 12){
-    $response = $eb->postRandom("gozen.txt");
+	$tb->postRandom("gozen.txt");
 }else{
-    $response = $eb->postRandom("gogo.txt");    
+	$tb->postRandom("gogo.txt");
 }
 
-//bot.phpを実行したときに、2月14日のみvalentine.txtのデータを、それ以外はdata.txtのデータを使う
-if(date("n") == 2 && datew("j") == 14){
-    $response = $eb->postRandom("valentine.txt");
+// bot.phpを実行したときに、7月7日のみtanabata.txtのデータを、それ以外はdata.txtのデータを使う
+if(date("n") == 2 && date("j") == 14){
+	$tb->postRandom("tanabata.txt");
 }else{
-    $response = $eb->postRandom("data.txt");    
+	$tb->postRandom("data.txt");
 }
 
-//準備したテキストを順番にポストしていって、準備した中から「めでたしめでたし」が投稿されたらbotの投稿をそこで止める
-$response = $eb->postRotation("data.txt","めでたしめでたし");    
+// 0時0分になったら「よるほー」と呟く
+if(date("n") == 0 && date("j") == 0){
+	$tb->post("よるほー");
+}
+
 */
-
-
-?>
