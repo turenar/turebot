@@ -5,6 +5,14 @@ define("ERR_ID__ILLEGAL_FILE", 3);
 define("ERR_ID__ILLEGAL_JSON", 4);
 define("TWITTER_API_BASE_URL","https://api.twitter.com/1.1/");
 define('_TUREBOT__FOLLOW_TWEET_VFN', '__follow.virtual');
+define("SQL_COMMAND_USERDATA", "CREATE TABLE `user_data` (
+		`userid` VARCHAR( 32 ) NOT NULL ,
+		`key` VARCHAR( 32 ) NOT NULL ,
+		`value` VARCHAR( 255 ) NULL ,
+		PRIMARY KEY ( `userid` , `key` )
+		) ENGINE = MYISAM CHARACTER SET utf8");
+
+
 
 
 /**
@@ -26,6 +34,11 @@ class TureBotter
 	protected	$log_debug_enabled;
 	protected	$config;
 
+	protected	$db_handle;
+	protected	$db_name;
+	protected	$db_user;
+	protected	$db_pass;
+
 	/**
 	 * インスタンスの作成
 	 * @param string $config_file 設定ファイル
@@ -45,6 +58,10 @@ class TureBotter
 		$_footer = $this->_get_cfg_value($cfg, 'footer');
 		$_flocktype = $this->_get_cfg_value($cfg, 'locktype', 'flock', array('flock','file','none'));
 		$_log_debug_enabled = $this->_get_cfg_value($cfg, 'debug_logging', false, array(true,false));
+		$_db_name = $this->_get_cfg_value($cfg, 'mysql_db', '');
+		$_db_user = $this->_get_cfg_value($cfg, 'mysql_user', '');
+		$_db_pass = $this->_get_cfg_value($cfg, 'mysql_password', '');
+
 		$lock_file = null;
 		$lockfp = null;
 
@@ -89,6 +106,9 @@ class TureBotter
 		$this->log_buffer = array();
 		$this->log_debug_enabled = $_log_debug_enabled;
 		$this->config = $cfg;
+		$this->db_name = $_db_name;
+		$this->db_user = $_db_user;
+		$this->db_pass = $_db_pass;
 
 		$user_info = $this->get_user_information();
 		if($user_info === NULL){
@@ -315,6 +335,67 @@ class TureBotter
 				if($reply != NULL){
 					$tweet_text = preg_replace('/\.?@[a-zA-Z0-9\-_]+\s/u', "", $reply['text']);
 					$text = str_replace('{tweet}', $tweet_text, $text);
+				}
+			}
+
+			while( FALSE !== ($syntax_start = strrpos($text, "{"))){
+				$syntax_end = strpos($text, "}", $syntax_start);
+				if($syntax_end === FALSE){
+					/*ERROR*/echo "\{と\}の数が合わないか、位置が正しくありません";
+					break;
+				}
+				$func_separator = strpos($text, ":", $syntax_start);
+				$func = substr($text, $syntax_start, $func_separator-$syntax_start);
+
+				switch($func){
+					case "{ifhour": /* {ifhour: <hour>[-<hour>] : <text>} */
+						/*int*/$offset = $syntax_start + strlen("{ifhour:"); // 文字分だけスキップ
+						/*int*/$separator_position = strpos($text, ":", $offset);
+						/*str*/$hours_string = substr($text, $offset, $separator_position-$offset);
+						/*bool*/$expand_flag = FALSE;
+						if( FALSE !== ($rangepos = strpos($hours_string, "-")) ){ // <hour>-<hour>の書式のとき
+							/*int*/$start = intval(trim(substr($hours_string, 0, $rangepos)));
+							/*int*/$end = intval(trim(substr($hours_string, $rangepos+1)));
+							if($start<0||$start>23||$end<0||$end>23){
+								$message = "<p>Syntax warning: {ifhour:&lt;hour&gt;-&lt;hour&gt;:&lt;text&gt;}の&lt;hour&gt;は、";
+								$message = "0-23の範囲で指定するようにして下さい</p>";
+								/*WARN*/echo $message;
+							}
+							$this->debug('ifhour', "$hours_string: $start - $end");
+							$expand_flag = ($start<=$end? ($start<=$__hour&&$__hour<=$end):
+									($start<=$__hour||$__hour<=$end));
+						}else{
+							$expand_flag = intval($hours_string) == $__hour;
+						}
+
+						if($expand_flag){
+							$text = substr_replace($text,
+									substr($text,$separator_position+1,$syntax_end-$separator_position-1),
+									$syntax_start,
+									$syntax_end-$syntax_start+1);
+						}else{
+							$text = substr_replace($text, "", $syntax_start, $syntax_end-$syntax_start+1);
+						}
+						$this->debug('ifhour', "replaced: $text");
+						break;
+
+					case "{store": /* {store: <key> : <value>} */
+						/*int*/$offset = $syntax_start + strlen("{store:"); // 文字分だけスキップ
+						/*int*/$separator_position = strpos($text, ":", $offset);
+						/*str*/$key = trim(substr($text, $offset, $separator_position-$offset));
+						/*str*/$val = trim(substr($text,$separator_position+1, $syntax_end-$separator_position-1));
+						$this->db_store_data((empty($reply) ? "__system" : $reply['user']['id']), $key, $val);
+						$text = substr_replace($text, "", $syntax_start, $syntax_end-$syntax_start+1);
+						break;
+
+					case "{get": /* {get: <key> : <default>} */
+						/*int*/$offset = $syntax_start + strlen("{get:"); // 文字分だけスキップ
+						/*int*/$separator_position = strpos($text, ":", $offset);
+						/*str*/$key = trim(substr($text, $offset, $separator_position-$offset));
+						/*str*/$default = trim(substr($text,$separator_position+1, $syntax_end-$separator_position-1));
+						/*str*/$val = $this->db_get_data((empty($reply) ? "__system" : $reply['user']['id']), $key, $default);
+						$text = substr_replace($text, $val, $syntax_start, $syntax_end-$syntax_start+1);
+						break;
 				}
 			}
 		}
@@ -613,6 +694,82 @@ class TureBotter
 	}
 
 	/**
+	 * MySQLに接続する
+	 * @return resource MySQLハンドル
+	 */
+	function db_get_handle(){
+		if($this->db_handle == NULL){
+			$error_message = NULL;
+			$this->db_handle = mysql_connect("localhost", $this->db_user, $this->db_pass)
+			or die("<p style='color:red;'>Failed open database: $error_message</p>");
+			mysql_select_db($this->db_name, $this->db_handle);
+			mysql_set_charset('utf8');
+		}
+		return $this->db_handle;
+	}
+
+	/**
+	 * MySQLにデータベースを作成する
+	 */
+	function db_init(){
+		$result = $this->db_execute(SQL_COMMAND_USERDATA);
+		if($result){
+			echo "Successfully created table";
+		}else{
+			echo "Failed creating table";
+		}
+	}
+
+	/**
+	 * MySQLでSQLコマンドを実行する
+	 * @param string $sql SQLコマンド
+	 * @return resource 実行結果
+	 */
+	function db_execute($sql){
+		$db_handle = $this->db_get_handle();
+		$result = mysql_query($sql, $db_handle);
+		if($result === FALSE){
+			$error_message = mysql_error($db_handle);
+			echo "<p>Could not execute sql($sql): $error_message</p>";
+		}
+		return $result;
+	}
+
+	/**
+	 * MySQLに保存する
+	 * @param string $userid ユーザーID
+	 * @param string $key キー
+	 * @param string $value 値
+	 */
+	function db_store_data($userid, $key, $value){
+		$db_handle = $this->db_get_handle();
+		$sql = sprintf("REPLACE INTO `user_data` ( `userid`, `key`, `value` ) values ( '%s', '%s', '%s' )"
+				, mysql_real_escape_string($userid, $db_handle), mysql_real_escape_string($key, $db_handle)
+				, mysql_real_escape_string($value, $db_handle));
+		$this->db_execute($sql);
+	}
+
+	/**
+	 * MySQLからデータを取得する
+	 * @param unknown_type $userid ユーザーID
+	 * @param unknown_type $key キー
+	 * @param unknown_type $default デフォルト値
+	 * @return 値
+	 */
+	function db_get_data($userid, $key, $default = ""){
+		$db_handle = $this->db_get_handle();
+		$sql = sprintf("SELECT `value` FROM `user_data` WHERE `userid` = '%s' AND `key` = '%s'"
+				, mysql_real_escape_string($userid, $db_handle), mysql_real_escape_string($key, $db_handle));
+		$result = $this->db_execute($sql);
+		if(mysql_num_rows($result) > 0){
+			$row = mysql_fetch_row($result);
+			return $row[0];
+		} else {
+			return $default;
+		}
+	}
+
+	/**
 	 * Twitter v1.1 APIを呼び出す
 	 * @param string $request_type POST or GET
 	 * @param string $endpoint エンドポイント名。例: statuses/update
@@ -722,9 +879,9 @@ class TureBotter
 			}
 
 			$data = array(
-				'user' => $user,
-				'updated_date' => time(),
-				'access_token' => $cfg['access_token']);
+					'user' => $user,
+					'updated_date' => time(),
+					'access_token' => $cfg['access_token']);
 			$this->cache_data['logining_user'] = $data;
 		}
 		return $data['user'];

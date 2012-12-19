@@ -13,6 +13,11 @@ $cfg['footer'] = "";
 $cfg['text_when_autoFollow'] = array('フォローしたよ！');
 # $cfg['text_when_autoFollow'] = NULL;
 
+// MySQLデータベースの設定
+// {store:<key>:<value>}や{get:<key>:<defalut>}を使用しなければ必要ありません
+$cfg['mysql_db'] = '';
+$cfg['mysql_user'] = '';
+$cfg['mysql_password'] = '';
 
 // ==== 高度な設定 ====
 
