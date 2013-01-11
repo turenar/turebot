@@ -274,6 +274,21 @@ class TureBotter
 		return isset($arr['error']);
 	}
 
+	public function check_to_follow($user_id, array $user=NULL){
+		if($user == NULL){
+			$user = $this->twitter_show_user($user_id);
+			if($this->is_error($user)){
+				return false;
+			}
+		}
+		$ffratio_threshold = $this->_get_cfg_value($this->config, 'followback_ffratio', 2.0);
+		$ffratio = intval($user['friends_count']) / intval($user['followers_count']);
+		if($ffratio > $ffratio_threshold){
+			return false;
+		}
+		return true;
+	}
+
 	/**
 	 * エラー情報の作成
 	 * @param int $errid エラーID
@@ -472,9 +487,11 @@ class TureBotter
 			$this->log('I', 'follow', " detected [[AUTOFOLLOW]]: (to $screen_name) $text");
 			$text = str_replace('[[AUTOFOLLOW]]', '', $text);
 
-			$follow_req = $this->twitter_follow_user($reply['user']['id_str']);
-			if($this->is_error($follow_req)){
-				$this->log('W', 'follow', " Failed follow user: $screen_name");
+			if($this->check_to_follow($reply['user']['id_str'], $reply['user'])){
+				$follow_req = $this->twitter_follow_user($reply['user']['id_str']);
+				if($this->is_error($follow_req)){
+					$this->log('W', 'follow', " Failed follow user: $screen_name");
+				}
 			}
 		}else if(strpos($text, "[[AUTOREMOVE]]") !== false){
 			$this->log('I', 'remove', " detected [[AUTOREMOVE]]: (to $screen_name) $text");
@@ -528,6 +545,9 @@ class TureBotter
 			$this->tweet_data[_TUREBOT__FOLLOW_TWEET_VFN] = (array) $status_texts;
 		}
 		foreach($follow_list as $id){
+			if($this->check_to_follow($id) === false){
+				continue;
+			}
 			$response = $this->twitter_follow_user($id);
 			if($this->is_error($response)){
 				$this->log('W', 'follow', " Failed following user (id=$id): {$response['error']['message']}");

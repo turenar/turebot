@@ -13,6 +13,10 @@ $cfg['footer'] = "";
 $cfg['text_when_autoFollow'] = array('フォローしたよ！');
 # $cfg['text_when_autoFollow'] = NULL;
 
+// フォローバックする フォロー数/フォロワー数 の比の下限。
+// 2.0だったら、フォロー数25 フォロワー数12 の人にはフォローを返さない
+$cfg['followback_ffratio'] = 2.0;
+
 // MySQLデータベースの設定
 // {store:<key>:<value>}や{get:<key>:<defalut>}を使用しなければ必要ありません
 $cfg['mysql_db'] = '';
