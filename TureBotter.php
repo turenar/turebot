@@ -950,4 +950,9 @@ class TureBotter
 		} while($cursor !== '0');
 		return $followings;
 	}
+
+	protected function twitter_show_user($user_id){
+		$parameters = array('user_id'=>$user_id);
+		return $this->twitter_api('GET', 'users/show', $parameters);
+	}
 }
