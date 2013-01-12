@@ -274,17 +274,19 @@ class TureBotter
 		return isset($arr['error']);
 	}
 
-	public function check_to_follow($user_id, array $user=NULL){
+	protected function check_to_follow($user_id, $is_auto=true, array $user=NULL){
 		if($user == NULL){
 			$user = $this->twitter_show_user($user_id);
 			if($this->is_error($user)){
 				return false;
 			}
 		}
-		$ffratio_threshold = $this->_get_cfg_value($this->config, 'followback_ffratio', 2.0);
-		$ffratio = intval($user['friends_count']) / intval($user['followers_count']);
-		if($ffratio > $ffratio_threshold){
-			return false;
+		if($is_auto){
+			$ffratio_threshold = $this->_get_cfg_value($this->config, 'followback_ffratio', 2.0);
+			$ffratio = intval($user['friends_count']) / intval($user['followers_count']);
+			if($ffratio > $ffratio_threshold){
+				return false;
+			}
 		}
 		return true;
 	}
@@ -487,7 +489,7 @@ class TureBotter
 			$this->log('I', 'follow', " detected [[AUTOFOLLOW]]: (to $screen_name) $text");
 			$text = str_replace('[[AUTOFOLLOW]]', '', $text);
 
-			if($this->check_to_follow($reply['user']['id_str'], $reply['user'])){
+			if($this->check_to_follow($reply['user']['id_str'], false, $reply['user'])){
 				$follow_req = $this->twitter_follow_user($reply['user']['id_str']);
 				if($this->is_error($follow_req)){
 					$this->log('W', 'follow', " Failed follow user: $screen_name");
